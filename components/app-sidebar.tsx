@@ -1,7 +1,7 @@
 "use client"
 
 import { OrganizationSwitcher, UserButton } from "@clerk/nextjs"
-import { Coins, MessagesSquare, PenLine } from "lucide-react"
+import { Coins, Gamepad2, MessagesSquare, PenLine } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -23,7 +23,12 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 
-export function AppSidebar() {
+type Game = {
+  id: string
+  title: string
+}
+
+export function AppSidebar({ games }: { games?: Game[] }) {
   const pathname = usePathname()
   const { state } = useSidebar()
   const isCollapsed = state === "collapsed"
@@ -72,6 +77,19 @@ export function AppSidebar() {
                     <span>Recents</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+              </SidebarMenu>
+            ) : games && games.length > 0 ? (
+              <SidebarMenu>
+                {games.map((game) => (
+                  <SidebarMenuItem key={game.id}>
+                    <SidebarMenuButton
+                      render={<Link href={`/game/${game.id}`} />}
+                    >
+                      <Gamepad2 />
+                      <span>{game.title}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
               </SidebarMenu>
             ) : (
               <Empty className="border py-4">

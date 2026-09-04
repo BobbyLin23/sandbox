@@ -1,0 +1,19 @@
+import { desc, eq } from "drizzle-orm"
+import { auth } from "@clerk/nextjs/server"
+
+import { db } from "@/lib/db"
+import { games } from "@/lib/db/schema"
+
+export async function listGames() {
+  const { orgId } = await auth()
+
+  if (!orgId) {
+    return []
+  }
+
+  return db
+    .select()
+    .from(games)
+    .where(eq(games.orgId, orgId))
+    .orderBy(desc(games.createdAt))
+}

@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useTransition } from "react"
 import {
   ArrowUp,
   Box,
@@ -13,6 +14,8 @@ import {
   Target,
   Zap,
 } from "lucide-react"
+
+import { createGame } from "@/lib/games/actions"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -40,11 +43,24 @@ const suggestions = [
 const models = ["Kimi K3", "Kimi K2", "GPT-5"]
 
 export function ChatComposer() {
+  const [title, setTitle] = useState("")
+  const [isPending, startTransition] = useTransition()
+
+  const handleCreate = (value: string) => {
+    if (!value.trim() || isPending) return
+    startTransition(async () => {
+      await createGame(value.trim())
+      setTitle("")
+    })
+  }
+
   return (
     <div className="flex w-full flex-col gap-4">
       <InputGroup className="bg-popover">
         <InputGroupTextarea
           rows={1}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
           placeholder="Describe the game you want to build..."
           className="min-h-10 max-h-48 field-sizing-content"
         />
@@ -72,6 +88,8 @@ export function ChatComposer() {
 
             <Button
               size="icon-lg"
+              onClick={() => handleCreate(title)}
+              disabled={isPending}
               className="rounded-full bg-orange-500 text-white hover:bg-orange-600 focus-visible:border-orange-600 focus-visible:ring-orange-500/40"
             >
               <ArrowUp className="size-5" />
