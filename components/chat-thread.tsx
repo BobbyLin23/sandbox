@@ -21,7 +21,7 @@ import {
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller"
 
-const initialMessages: UIMessage[] = [
+const greeting: UIMessage[] = [
   {
     id: "1",
     role: "assistant",
@@ -34,10 +34,22 @@ const initialMessages: UIMessage[] = [
   },
 ]
 
-export function ChatThread() {
+export function ChatThread({
+  gameId,
+  messages: initialMessages = greeting,
+}: {
+  gameId: string
+  messages?: UIMessage[]
+}) {
   const { messages, sendMessage } = useChat({
-    transport: new DefaultChatTransport({ api: "/api/chat" }),
+    id: gameId,
     messages: initialMessages,
+    transport: new DefaultChatTransport({
+      api: "/api/chat",
+      prepareSendMessagesRequest({ messages, id }) {
+        return { body: { message: messages[messages.length - 1], id } }
+      },
+    }),
   })
 
   return (

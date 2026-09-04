@@ -93,7 +93,16 @@ export function AppSidebar({ games }: { games?: Game[] }) {
                         <PopoverClose
                           key={game.id}
                           nativeButton={false}
-                          render={<Link href={`/games/${game.id}`} />}
+                          render={
+                            <Link
+                              href={`/games/${game.id}`}
+                              aria-current={
+                                pathname === `/games/${game.id}`
+                                  ? "page"
+                                  : undefined
+                              }
+                            />
+                          }
                         >
                           <span className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
                             <Gamepad2 className="size-4 shrink-0" />
@@ -117,6 +126,7 @@ export function AppSidebar({ games }: { games?: Game[] }) {
                   <SidebarMenuItem key={game.id}>
                     <SidebarMenuButton
                       render={<Link href={`/games/${game.id}`} />}
+                      isActive={pathname === `/games/${game.id}`}
                     >
                       <Gamepad2 />
                       <span>{game.title}</span>

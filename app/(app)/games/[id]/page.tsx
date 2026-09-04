@@ -24,7 +24,10 @@ export default async function GamePage({
 
   return (
     <div className="flex h-svh w-full flex-col py-4">
-      <ChatThread />
+      <ChatThread
+        gameId={game.id}
+        messages={game.messages.length > 0 ? game.messages : undefined}
+      />
     </div>
   )
 }

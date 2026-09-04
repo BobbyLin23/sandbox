@@ -1,5 +1,13 @@
+import type { UIMessage } from "ai"
 import { sql } from "drizzle-orm"
-import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core"
+import {
+  index,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core"
 
 export const games = pgTable(
   "games",
@@ -7,6 +15,10 @@ export const games = pgTable(
     id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
     orgId: text("org_id").notNull(),
     title: text("title").notNull(),
+    messages: jsonb("messages")
+      .$type<UIMessage[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
