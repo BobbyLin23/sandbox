@@ -116,7 +116,7 @@ export function AppSidebar({ games }: { games?: Game[] }) {
                 {games.map((game) => (
                   <SidebarMenuItem key={game.id}>
                     <SidebarMenuButton
-                      render={<Link href={`/game/${game.id}`} />}
+                      render={<Link href={`/games/${game.id}`} />}
                     >
                       <Gamepad2 />
                       <span>{game.title}</span>
