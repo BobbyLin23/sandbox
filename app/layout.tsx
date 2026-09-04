@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 
 import "./globals.css"
@@ -10,6 +11,15 @@ const fontMono = Geist_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
 })
+
+export const metadata: Metadata = {
+  title: {
+    default: "Sandbox - Build 3D games with AI",
+    template: "%s - Sandbox",
+  },
+  description:
+    "Describe a game and watch it come to life. Sandbox is an agentic three.js game builder that plans the scene, writes the code, and streams playable worlds from plain English.",
+}
 
 export default function RootLayout({
   children,
