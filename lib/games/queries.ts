@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm"
+import { and, desc, eq } from "drizzle-orm"
 import { auth } from "@clerk/nextjs/server"
 
 import { db } from "@/lib/db"
@@ -16,4 +16,20 @@ export async function listGames() {
     .from(games)
     .where(eq(games.orgId, orgId))
     .orderBy(desc(games.createdAt))
+}
+
+export async function getGame(id: string) {
+  const { orgId } = await auth()
+
+  if (!orgId) {
+    return null
+  }
+
+  const [game] = await db
+    .select()
+    .from(games)
+    .where(and(eq(games.id, id), eq(games.orgId, orgId)))
+    .limit(1)
+
+  return game ?? null
 }

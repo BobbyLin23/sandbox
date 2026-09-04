@@ -1,10 +1,8 @@
 import { auth } from "@clerk/nextjs/server"
-import { eq } from "drizzle-orm"
 import { notFound } from "next/navigation"
 
 import { ChatThread } from "@/components/chat-thread"
-import { db } from "@/lib/db"
-import { games } from "@/lib/db/schema"
+import { getGame } from "@/lib/games/queries"
 
 export default async function GamePage({
   params,
@@ -12,16 +10,15 @@ export default async function GamePage({
   params: Promise<{ id: string }>
 }) {
   await auth.protect()
-  const { orgId } = await auth()
   const { id } = await params
 
-  if (!id || !orgId) {
+  if (!id) {
     return notFound()
   }
 
-  const [game] = await db.select().from(games).where(eq(games.id, id)).limit(1)
+  const game = await getGame(id)
 
-  if (!game || game.orgId !== orgId) {
+  if (!game) {
     return notFound()
   }
 
