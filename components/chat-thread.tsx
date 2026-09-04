@@ -6,6 +6,7 @@ import Image from "next/image"
 
 import { ChatComposer } from "@/components/chat-composer"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
+import { Markdown } from "@/components/ui/markdown"
 import {
   Message,
   MessageAvatar,
@@ -21,22 +22,9 @@ import {
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller"
 
-const greeting: UIMessage[] = [
-  {
-    id: "1",
-    role: "assistant",
-    parts: [
-      {
-        type: "text",
-        text: "Hey! I'm your game-building partner. Describe the game you want to build and I'll help you bring it to life.",
-      },
-    ],
-  },
-]
-
 export function ChatThread({
   gameId,
-  messages: initialMessages = greeting,
+  messages: initialMessages = [],
 }: {
   gameId: string
   messages?: UIMessage[]
@@ -53,11 +41,11 @@ export function ChatThread({
   })
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       <MessageScrollerProvider>
         <MessageScroller>
           <MessageScrollerViewport>
-            <MessageScrollerContent className="mx-auto w-full max-w-2xl">
+            <MessageScrollerContent className="mx-auto w-full max-w-2xl pb-2">
               {messages.map((message) => (
                 <MessageScrollerItem key={message.id} scrollAnchor>
                   <MessageGroup>
@@ -85,11 +73,21 @@ export function ChatThread({
                               message.role === "assistant" ? "py-2!" : undefined
                             }
                           >
-                            {message.parts
-                              .map((part) =>
-                                part.type === "text" ? part.text : ""
-                              )
-                              .join("")}
+                            {message.role === "assistant" ? (
+                              <Markdown>
+                                {message.parts
+                                  .map((part) =>
+                                    part.type === "text" ? part.text : ""
+                                  )
+                                  .join("")}
+                              </Markdown>
+                            ) : (
+                              message.parts
+                                .map((part) =>
+                                  part.type === "text" ? part.text : ""
+                                )
+                                .join("")
+                            )}
                           </BubbleContent>
                         </Bubble>
                       </MessageContent>
