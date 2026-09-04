@@ -27,6 +27,8 @@ export default async function GamePage({
       <ChatThread
         gameId={game.id}
         messages={game.messages.length > 0 ? game.messages : undefined}
+        lastEventId={game.lastEventId ?? undefined}
+        publicAccessToken={game.publicAccessToken ?? undefined}
       />
     </div>
   )

@@ -3,6 +3,13 @@
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 import * as React from "react"
 
+// next-themes renders an inline <script> to set the theme before hydration.
+// React 19 warns about <script> tags inside components (a false positive here —
+// the script runs from the SSR HTML). Tag the script as a data block on the
+// client so React doesn't warn, while the SSR script stays executable.
+const inlineScriptProps =
+  typeof window === "undefined" ? undefined : { type: "application/json" }
+
 function ThemeProvider({
   children,
   ...props
@@ -13,6 +20,7 @@ function ThemeProvider({
       defaultTheme="system"
       enableSystem
       disableTransitionOnChange
+      scriptProps={inlineScriptProps}
       {...props}
     >
       <ThemeHotkey />

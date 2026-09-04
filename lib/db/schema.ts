@@ -19,6 +19,8 @@ export const games = pgTable(
       .$type<UIMessage[]>()
       .notNull()
       .default(sql`'[]'::jsonb`),
+    lastEventId: text("last_event_id"),
+    publicAccessToken: text("public_access_token"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

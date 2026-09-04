@@ -12,7 +12,8 @@
     "check": "biome check .",
     "typecheck": "tsc --noEmit",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "trigger:dev": "trigger dev"
   },
   "dependencies": {
     "@ai-sdk/deepseek": "^3.0.39",
