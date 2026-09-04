@@ -1,7 +1,7 @@
 "use client"
 
 import { OrganizationSwitcher, UserButton } from "@clerk/nextjs"
-import { Coins, PenLine } from "lucide-react"
+import { Coins, MessagesSquare, PenLine } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -20,26 +20,29 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar"
 
 export function AppSidebar() {
   const pathname = usePathname()
+  const { state } = useSidebar()
+  const isCollapsed = state === "collapsed"
 
   return (
-    <Sidebar>
+    <Sidebar collapsible="icon">
       <SidebarHeader>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
           <Image
             src="/logo.svg"
             alt="Sandbox"
             width={20}
             height={20}
-            className="size-5"
+            className="size-5 group-data-[collapsible=icon]:hidden"
           />
-          <span className="font-logo text-base font-medium tracking-tight">
+          <span className="font-logo text-base font-medium tracking-tight group-data-[collapsible=icon]:hidden">
             Sandbox
           </span>
-          <SidebarTrigger className="ml-auto" />
+          <SidebarTrigger className="ml-auto group-data-[collapsible=icon]:ml-0" />
         </div>
       </SidebarHeader>
       <SidebarContent>
@@ -61,11 +64,22 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupLabel>Recents</SidebarGroupLabel>
           <SidebarGroupContent>
-            <Empty className="border py-4">
-              <EmptyDescription className="text-xs">
-                Your games will live here.
-              </EmptyDescription>
-            </Empty>
+            {isCollapsed ? (
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton tooltip="Recents">
+                    <MessagesSquare />
+                    <span>Recents</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            ) : (
+              <Empty className="border py-4">
+                <EmptyDescription className="text-xs">
+                  Your games will live here.
+                </EmptyDescription>
+              </Empty>
+            )}
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
