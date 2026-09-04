@@ -1,8 +1,5 @@
 import { auth } from "@clerk/nextjs/server"
 import Image from "next/image"
-
-import { suggestions } from "@/lib/games/suggestions"
-
 import { ChatComposer } from "@/components/chat-composer"
 import { Button } from "@/components/ui/button"
 import {
@@ -13,6 +10,8 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
+import { createGame } from "@/lib/games/actions"
+import { suggestions } from "@/lib/games/suggestions"
 
 export default async function Page() {
   await auth.protect()
@@ -33,7 +32,7 @@ export default async function Page() {
               your own words. If you can describe it, you can play it.
             </EmptyDescription>
           </EmptyHeader>
-          <ChatComposer />
+          <ChatComposer onSubmit={createGame} />
           <div className="flex flex-wrap justify-center gap-2">
             {suggestions.map(({ icon: Icon, label }) => (
               <Button

@@ -1,5 +1,7 @@
 "use client"
 
+import { useChat } from "@ai-sdk/react"
+import { DefaultChatTransport, type UIMessage } from "ai"
 import Image from "next/image"
 
 import { ChatComposer } from "@/components/chat-composer"
@@ -19,34 +21,31 @@ import {
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller"
 
-const messages = [
+const initialMessages: UIMessage[] = [
   {
-    id: 1,
+    id: "1",
     role: "assistant",
-    content:
-      "Hey! I'm your game-building partner. Describe the game you want to build and I'll help you bring it to life.",
+    parts: [
+      {
+        type: "text",
+        text: "Hey! I'm your game-building partner. Describe the game you want to build and I'll help you bring it to life.",
+      },
+    ],
   },
-  {
-    id: 2,
-    role: "user",
-    content:
-      "I want to build a voxel survival game where I mine resources and craft things.",
-  },
-  {
-    id: 3,
-    role: "assistant",
-    content:
-      "Great idea! I'll set up a world where you can dig, gather blocks, and craft tools to survive the night.",
-  },
-] as const
+]
 
 export function ChatThread() {
+  const { messages, sendMessage } = useChat({
+    transport: new DefaultChatTransport({ api: "/api/chat" }),
+    messages: initialMessages,
+  })
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <MessageScrollerProvider>
         <MessageScroller>
           <MessageScrollerViewport>
-            <MessageScrollerContent>
+            <MessageScrollerContent className="mx-auto w-full max-w-2xl">
               {messages.map((message) => (
                 <MessageScrollerItem key={message.id} scrollAnchor>
                   <MessageGroup>
@@ -74,7 +73,11 @@ export function ChatThread() {
                               message.role === "assistant" ? "py-2!" : undefined
                             }
                           >
-                            {message.content}
+                            {message.parts
+                              .map((part) =>
+                                part.type === "text" ? part.text : ""
+                              )
+                              .join("")}
                           </BubbleContent>
                         </Bubble>
                       </MessageContent>
@@ -87,7 +90,9 @@ export function ChatThread() {
           <MessageScrollerButton />
         </MessageScroller>
       </MessageScrollerProvider>
-      <ChatComposer />
+      <div className="mx-auto w-full max-w-2xl">
+        <ChatComposer onSubmit={(value) => sendMessage({ text: value })} />
+      </div>
     </div>
   )
 }

@@ -26,7 +26,7 @@ export default async function GamePage({
   }
 
   return (
-    <div className="mx-auto flex h-svh w-full max-w-2xl flex-col py-4">
+    <div className="flex h-svh w-full flex-col py-4">
       <ChatThread />
     </div>
   )

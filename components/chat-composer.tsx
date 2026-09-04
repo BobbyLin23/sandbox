@@ -14,19 +14,23 @@ import {
   InputGroupAddon,
   InputGroupTextarea,
 } from "@/components/ui/input-group"
-import { createGame } from "@/lib/games/actions"
 
 const models = ["Kimi K3", "Kimi K2", "GPT-5"]
 
-export function ChatComposer() {
+interface ChatComposerProps {
+  onSubmit: (value: string) => unknown
+}
+
+export function ChatComposer({ onSubmit }: ChatComposerProps) {
   const [title, setTitle] = useState("")
   const [isPending, startTransition] = useTransition()
 
-  const handleCreate = (value: string) => {
+  const handleSubmit = (value: string) => {
     if (!value.trim() || isPending) return
+    const trimmed = value.trim()
+    setTitle("")
     startTransition(async () => {
-      await createGame(value.trim())
-      setTitle("")
+      await onSubmit(trimmed)
     })
   }
 
@@ -64,7 +68,7 @@ export function ChatComposer() {
 
             <Button
               size="icon-lg"
-              onClick={() => handleCreate(title)}
+              onClick={() => handleSubmit(title)}
               disabled={isPending}
               className="rounded-full bg-orange-500 text-white hover:bg-orange-600 focus-visible:border-orange-600 focus-visible:ring-orange-500/40"
             >

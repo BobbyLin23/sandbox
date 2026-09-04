@@ -1,12 +1,4 @@
-import {
-  Box,
-  Car,
-  Cloud,
-  Crosshair,
-  Swords,
-  Target,
-  Zap,
-} from "lucide-react"
+import { Box, Car, Cloud, Crosshair, Swords, Target, Zap } from "lucide-react"
 
 export const suggestions = [
   { icon: Box, label: "Voxel survival" },
