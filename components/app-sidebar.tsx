@@ -8,6 +8,14 @@ import { usePathname } from "next/navigation"
 
 import { Empty, EmptyDescription } from "@/components/ui/empty"
 import {
+  Popover,
+  PopoverClose,
+  PopoverContent,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -70,14 +78,39 @@ export function AppSidebar({ games }: { games?: Game[] }) {
           <SidebarGroupLabel>Recents</SidebarGroupLabel>
           <SidebarGroupContent>
             {isCollapsed ? (
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton tooltip="Recents">
-                    <MessagesSquare />
-                    <span>Recents</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
+              <Popover>
+                <PopoverTrigger render={<SidebarMenuButton />}>
+                  <MessagesSquare />
+                  <span className="sr-only">Recents</span>
+                </PopoverTrigger>
+                <PopoverContent side="right" sideOffset={8}>
+                  <PopoverHeader>
+                    <PopoverTitle>Recents</PopoverTitle>
+                  </PopoverHeader>
+                  {games && games.length > 0 ? (
+                    <div className="flex flex-col">
+                      {games.map((game) => (
+                        <PopoverClose
+                          key={game.id}
+                          nativeButton={false}
+                          render={<Link href={`/games/${game.id}`} />}
+                        >
+                          <span className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
+                            <Gamepad2 className="size-4 shrink-0" />
+                            <span className="truncate">{game.title}</span>
+                          </span>
+                        </PopoverClose>
+                      ))}
+                    </div>
+                  ) : (
+                    <Empty className="border py-4">
+                      <EmptyDescription className="text-xs">
+                        Your games will live here.
+                      </EmptyDescription>
+                    </Empty>
+                  )}
+                </PopoverContent>
+              </Popover>
             ) : games && games.length > 0 ? (
               <SidebarMenu>
                 {games.map((game) => (
