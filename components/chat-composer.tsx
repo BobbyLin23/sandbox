@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowUp, Check, ChevronDown, LayoutGrid } from "lucide-react"
+import { ArrowUp, Check, ChevronDown, LayoutGrid, Square } from "lucide-react"
 import { useState, useTransition } from "react"
 import { Button } from "@/components/ui/button"
 import {
@@ -19,9 +19,15 @@ const models = ["Kimi K3", "Kimi K2", "GPT-5"]
 
 interface ChatComposerProps {
   onSubmit: (value: string) => unknown
+  onStop?: () => void
+  isStreaming?: boolean
 }
 
-export function ChatComposer({ onSubmit }: ChatComposerProps) {
+export function ChatComposer({
+  onSubmit,
+  onStop,
+  isStreaming = false,
+}: ChatComposerProps) {
   const [title, setTitle] = useState("")
   const [isPending, startTransition] = useTransition()
 
@@ -33,6 +39,9 @@ export function ChatComposer({ onSubmit }: ChatComposerProps) {
       await onSubmit(trimmed)
     })
   }
+
+  const isCancellable = isStreaming
+  const canSubmit = !isPending && !isCancellable
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -68,12 +77,24 @@ export function ChatComposer({ onSubmit }: ChatComposerProps) {
 
             <Button
               size="icon-lg"
-              onClick={() => handleSubmit(title)}
-              disabled={isPending}
+              onClick={() => {
+                if (isCancellable) {
+                  onStop?.()
+                  return
+                }
+                handleSubmit(title)
+              }}
+              disabled={!isCancellable && !canSubmit}
               className="rounded-full bg-orange-500 text-white hover:bg-orange-600 focus-visible:border-orange-600 focus-visible:ring-orange-500/40"
             >
-              <ArrowUp className="size-5" />
-              <span className="sr-only">Send</span>
+              {isCancellable ? (
+                <Square className="size-4 fill-current" />
+              ) : (
+                <ArrowUp className="size-5" />
+              )}
+              <span className="sr-only">
+                {isCancellable ? "Stop" : "Send"}
+              </span>
             </Button>
           </div>
         </InputGroupAddon>

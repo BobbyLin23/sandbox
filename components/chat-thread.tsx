@@ -58,7 +58,7 @@ export function ChatThread({
       : undefined,
   })
 
-  const { messages, sendMessage, status, error, resumeStream } = useChat({
+  const { messages, sendMessage, stop, status, error, resumeStream } = useChat({
     id: gameId,
     messages: initialMessages,
     transport,
@@ -232,7 +232,11 @@ export function ChatThread({
         </MessageScroller>
       </MessageScrollerProvider>
       <div className="mx-auto w-full max-w-2xl">
-        <ChatComposer onSubmit={(value) => sendMessage({ text: value })} />
+        <ChatComposer
+          onSubmit={(value) => sendMessage({ text: value })}
+          onStop={stop}
+          isStreaming={status === "submitted" || status === "streaming"}
+        />
       </div>
     </div>
   )
