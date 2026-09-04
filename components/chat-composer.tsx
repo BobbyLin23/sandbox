@@ -1,22 +1,7 @@
 "use client"
 
+import { ArrowUp, Check, ChevronDown, LayoutGrid } from "lucide-react"
 import { useState, useTransition } from "react"
-import {
-  ArrowUp,
-  Box,
-  Car,
-  Check,
-  ChevronDown,
-  Cloud,
-  Crosshair,
-  LayoutGrid,
-  Swords,
-  Target,
-  Zap,
-} from "lucide-react"
-
-import { createGame } from "@/lib/games/actions"
-
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -29,16 +14,7 @@ import {
   InputGroupAddon,
   InputGroupTextarea,
 } from "@/components/ui/input-group"
-
-const suggestions = [
-  { icon: Box, label: "Voxel survival" },
-  { icon: Swords, label: "Ink samurai duel" },
-  { icon: Zap, label: "Comic-book firefight" },
-  { icon: Crosshair, label: "Realistic battlefield" },
-  { icon: Target, label: "Fight-first shooter" },
-  { icon: Car, label: "Jungle expedition drive" },
-  { icon: Cloud, label: "Sunny kingdom platformer" },
-]
+import { createGame } from "@/lib/games/actions"
 
 const models = ["Kimi K3", "Kimi K2", "GPT-5"]
 
@@ -98,20 +74,6 @@ export function ChatComposer() {
           </div>
         </InputGroupAddon>
       </InputGroup>
-
-      <div className="flex flex-wrap justify-center gap-2">
-        {suggestions.map(({ icon: Icon, label }) => (
-          <Button
-            key={label}
-            variant="outline"
-            size="sm"
-            className="gap-1.5 font-normal text-muted-foreground rounded-full"
-          >
-            <Icon className="size-4" />
-            {label}
-          </Button>
-        ))}
-      </div>
     </div>
   )
 }
