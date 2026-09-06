@@ -2,6 +2,7 @@ import { deepSeek } from "@ai-sdk/deepseek"
 import { chat, upsertIncomingMessage } from "@trigger.dev/sdk/ai"
 import { streamText } from "ai"
 
+import { gameInstructions } from "@/lib/games/instructions"
 import {
   getGameMessages,
   persistGameState,
@@ -35,7 +36,7 @@ export const gameChat = chat.agent({
     streamText({
       ...chat.toStreamTextOptions(),
       model: deepSeek("deepseek-v4-flash"),
-      instructions: "You are a helpful assistant.",
+      instructions: gameInstructions,
       messages,
       abortSignal: signal,
     }),
