@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { notFound } from "next/navigation"
 
-import { ChatThread } from "@/components/chat-thread"
+import { GameChat } from "@/components/game-chat"
 import { getGame } from "@/lib/games/queries"
 
 export default async function GamePage({
@@ -24,11 +24,12 @@ export default async function GamePage({
 
   return (
     <div className="flex h-svh w-full flex-col py-4">
-      <ChatThread
+      <GameChat
         gameId={game.id}
         messages={game.messages.length > 0 ? game.messages : undefined}
         lastEventId={game.lastEventId ?? undefined}
         publicAccessToken={game.publicAccessToken ?? undefined}
+        sandboxId={game.sandboxId ?? undefined}
       />
     </div>
   )

@@ -9,8 +9,13 @@ import { redirect } from "next/navigation"
 
 import { db } from "@/lib/db"
 import { games } from "@/lib/db/schema"
+import { listGames } from "@/lib/games/queries"
 
 const newMessageId = createIdGenerator({ prefix: "msg", size: 16 })
+
+export async function listGamesAction() {
+  return listGames()
+}
 
 export async function createGame(description: string) {
   const { orgId } = await clerkAuth()

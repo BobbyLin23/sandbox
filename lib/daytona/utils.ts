@@ -1,28 +1,199 @@
-import { Daytona } from "@daytona/sdk"
+import type { Sandbox } from "@daytona/sdk"
+import { SandboxState } from "@daytona/sdk"
 import { eq } from "drizzle-orm"
 
 import { db } from "@/lib/db"
 import { games } from "@/lib/db/schema"
+import { daytona } from "./client"
 
 const GAME_INDEX_PATH = "/home/daytona/game"
+const GAME_INDEX_FILE = `${GAME_INDEX_PATH}/index.html`
+const GAME_PORT = 3000
+
+const GAME_HTML = "New game"
+
+const HEALTH_CHECK_CMD = `python3 -c "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://localhost:${GAME_PORT}/',timeout=5).status==200 else 1)"`
+
+const START_SERVER_CMD = `nohup python3 -m http.server ${GAME_PORT} --bind 0.0.0.0 --directory ${GAME_INDEX_PATH} > /tmp/game-server.log 2>&1 &`
+
+// Dedupe concurrent create calls within this process so a sandbox is never
+// provisioned twice for the same game.
+const sandboxCreation = new Map<string, Promise<string>>()
+
+// Sandboxes are named after the game so a sandbox that was created but whose
+// creation call timed out can be recovered by name instead of orphaned.
+function sandboxName(gameId: string): string {
+  return `game-${gameId}`
+}
+
+const SANDBOX_CREATE_TIMEOUT_SECONDS = 300
 
 export async function createGameSandbox(gameId: string): Promise<string> {
-  const daytona = new Daytona()
+  const inFlight = sandboxCreation.get(gameId)
+  if (inFlight) {
+    return inFlight
+  }
 
-  const sandbox = await daytona.create({
-    name: `game-${gameId}`,
+  const creation = ensureGameSandbox(gameId).finally(() => {
+    sandboxCreation.delete(gameId)
   })
 
-  await sandbox.fs.createFolder(GAME_INDEX_PATH, "755")
-  await sandbox.fs.uploadFile(
-    Buffer.from("New game"),
-    `${GAME_INDEX_PATH}/index.html`
-  )
+  sandboxCreation.set(gameId, creation)
+  return creation
+}
 
+async function ensureGameSandbox(gameId: string): Promise<string> {
+  const [game] = await db
+    .select({ sandboxId: games.sandboxId })
+    .from(games)
+    .where(eq(games.id, gameId))
+    .limit(1)
+
+  if (game?.sandboxId) {
+    const existing = await getSandboxIfExists(game.sandboxId)
+    if (existing) {
+      return existing.id
+    }
+  }
+
+  // Adopt a sandbox that was created earlier but never persisted (e.g. a
+  // previous create() call timed out) so we don't provision a duplicate.
+  let sandbox = await getSandboxByName(sandboxName(gameId))
+
+  if (!sandbox) {
+    try {
+      sandbox = await daytona.create(
+        {
+          name: sandboxName(gameId),
+          labels: {
+            gameId,
+          },
+        },
+        { timeout: SANDBOX_CREATE_TIMEOUT_SECONDS }
+      )
+    } catch (error) {
+      // create() can throw (e.g. a start timeout) AFTER the sandbox was already
+      // created on Daytona. Recover it by name and continue, so it isn't
+      // orphaned and a retry doesn't provision a duplicate.
+      sandbox = await getSandboxByName(sandboxName(gameId))
+      if (!sandbox) {
+        throw error
+      }
+    }
+  }
+
+  // Persist the id before any slower operations so a later failure can't
+  // leave the sandbox created but the DB row pointing at nothing.
   await db
     .update(games)
     .set({ sandboxId: sandbox.id, updatedAt: new Date() })
     .where(eq(games.id, gameId))
 
+  try {
+    await writeGameIndex(sandbox)
+  } catch (error) {
+    // The id is already persisted; startGameServer retries the write.
+    console.error(`Failed to write game index to sandbox ${sandbox.id}`, error)
+  }
+
   return sandbox.id
+}
+
+export async function startGameServer(gameId: string) {
+  const [game] = await db
+    .select()
+    .from(games)
+    .where(eq(games.id, gameId))
+    .limit(1)
+
+  if (!game) {
+    throw new Error(`Game not found: ${gameId}`)
+  }
+
+  let sandbox = game.sandboxId ? await getSandboxIfExists(game.sandboxId) : null
+
+  if (!sandbox) {
+    const sandboxId = await createGameSandbox(gameId)
+    sandbox = await daytona.get(sandboxId)
+  }
+
+  if (sandbox.state !== SandboxState.STARTED) {
+    await sandbox.start()
+  }
+
+  if (!(await isGameServerHealthy(sandbox))) {
+    await writeGameIndex(sandbox)
+    await startGameHttpServer(sandbox)
+  }
+
+  const { url, token } = await sandbox.getPreviewLink(GAME_PORT)
+
+  return { sandboxId: sandbox.id, url, token }
+}
+
+async function getSandboxIfExists(sandboxId: string): Promise<Sandbox | null> {
+  try {
+    return await daytona.get(sandboxId)
+  } catch {
+    return null
+  }
+}
+
+async function getSandboxByName(name: string): Promise<Sandbox | null> {
+  try {
+    return await daytona.get(name)
+  } catch {
+    return null
+  }
+}
+
+async function writeGameIndex(sandbox: Sandbox): Promise<void> {
+  await sandbox.fs.createFolder(GAME_INDEX_PATH, "755")
+  await sandbox.fs.uploadFile(Buffer.from(GAME_HTML), GAME_INDEX_FILE)
+}
+
+async function isGameServerHealthy(sandbox: Sandbox): Promise<boolean> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const response = await sandbox.process.executeCommand(
+      HEALTH_CHECK_CMD,
+      undefined,
+      undefined,
+      15
+    )
+
+    if (response.exitCode === 0) {
+      return true
+    }
+
+    if (attempt < 2) {
+      await delay(1000)
+    }
+  }
+
+  return false
+}
+
+async function startGameHttpServer(sandbox: Sandbox): Promise<void> {
+  await sandbox.process.executeCommand(START_SERVER_CMD)
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await delay(1000)
+
+    const response = await sandbox.process.executeCommand(
+      HEALTH_CHECK_CMD,
+      undefined,
+      undefined,
+      15
+    )
+
+    if (response.exitCode === 0) {
+      return
+    }
+  }
+
+  throw new Error("Failed to start the game HTTP server in the sandbox")
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }

@@ -5,6 +5,7 @@ import { Coins, Gamepad2, MessagesSquare, PenLine } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useEffect, useState } from "react"
 
 import { Empty, EmptyDescription } from "@/components/ui/empty"
 import {
@@ -30,6 +31,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { listGamesAction } from "@/lib/games/actions"
 
 type Game = {
   id: string
@@ -40,6 +42,25 @@ export function AppSidebar({ games }: { games?: Game[] }) {
   const pathname = usePathname()
   const { state } = useSidebar()
   const isCollapsed = state === "collapsed"
+
+  const [clientGames, setClientGames] = useState<Game[]>(games ?? [])
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refetch games on navigation so new games appear in Recents
+  useEffect(() => {
+    let cancelled = false
+
+    listGamesAction().then((latest) => {
+      if (!cancelled) {
+        setClientGames(latest)
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [pathname])
+
+  const activeGames = clientGames
 
   return (
     <Sidebar collapsible="icon">
@@ -87,9 +108,9 @@ export function AppSidebar({ games }: { games?: Game[] }) {
                   <PopoverHeader>
                     <PopoverTitle>Recents</PopoverTitle>
                   </PopoverHeader>
-                  {games && games.length > 0 ? (
+                  {activeGames && activeGames.length > 0 ? (
                     <div className="flex flex-col">
-                      {games.map((game) => (
+                      {activeGames.map((game) => (
                         <PopoverClose
                           key={game.id}
                           nativeButton={false}
@@ -120,9 +141,9 @@ export function AppSidebar({ games }: { games?: Game[] }) {
                   )}
                 </PopoverContent>
               </Popover>
-            ) : games && games.length > 0 ? (
+            ) : activeGames && activeGames.length > 0 ? (
               <SidebarMenu>
-                {games.map((game) => (
+                {activeGames.map((game) => (
                   <SidebarMenuItem key={game.id}>
                     <SidebarMenuButton
                       render={<Link href={`/games/${game.id}`} />}
