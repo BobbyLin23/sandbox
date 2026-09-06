@@ -1,6 +1,6 @@
 import { deepSeek } from "@ai-sdk/deepseek"
 import { chat, upsertIncomingMessage } from "@trigger.dev/sdk/ai"
-import { streamText } from "ai"
+import { stepCountIs, streamText } from "ai"
 
 import { gameInstructions } from "@/lib/games/instructions"
 import {
@@ -8,9 +8,11 @@ import {
   persistGameState,
   updateGameMessages,
 } from "@/lib/games/persistence"
+import { createGameTools } from "@/lib/games/tools"
 
 export const gameChat = chat.agent({
   id: "game-chat",
+  tools: ({ chatId }) => createGameTools(chatId),
   hydrateMessages: async ({ chatId, trigger, incomingMessages }) => {
     const stored = await getGameMessages(chatId)
 
@@ -32,12 +34,13 @@ export const gameChat = chat.agent({
       publicAccessToken: chatAccessToken,
     })
   },
-  run: async ({ messages, signal }) =>
+  run: async ({ messages, tools, signal }) =>
     streamText({
-      ...chat.toStreamTextOptions(),
+      ...chat.toStreamTextOptions({ tools }),
       model: deepSeek("deepseek-v4-flash"),
       instructions: gameInstructions,
       messages,
       abortSignal: signal,
+      stopWhen: stepCountIs(20),
     }),
 })

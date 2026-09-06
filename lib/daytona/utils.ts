@@ -6,7 +6,7 @@ import { db } from "@/lib/db"
 import { games } from "@/lib/db/schema"
 import { daytona } from "./client"
 
-const GAME_INDEX_PATH = "/home/daytona/game"
+export const GAME_INDEX_PATH = "/home/daytona/game"
 const GAME_INDEX_FILE = `${GAME_INDEX_PATH}/index.html`
 const GAME_PORT = 3000
 
@@ -157,9 +157,33 @@ async function getSandboxByName(name: string): Promise<Sandbox | null> {
   }
 }
 
+// Seed the placeholder only when there is no index.html yet — never overwrite
+// game files the chat agent has written.
 async function writeGameIndex(sandbox: Sandbox): Promise<void> {
-  await sandbox.fs.createFolder(GAME_INDEX_PATH, "755")
+  await ensureGameFolder(sandbox)
+
+  if (await gameIndexExists(sandbox)) {
+    return
+  }
+
   await sandbox.fs.uploadFile(Buffer.from(GAME_HTML), GAME_INDEX_FILE)
+}
+
+async function ensureGameFolder(sandbox: Sandbox): Promise<void> {
+  try {
+    await sandbox.fs.createFolder(GAME_INDEX_PATH, "755")
+  } catch {
+    // The folder already exists.
+  }
+}
+
+async function gameIndexExists(sandbox: Sandbox): Promise<boolean> {
+  try {
+    await sandbox.fs.getFileDetails(GAME_INDEX_FILE)
+    return true
+  } catch {
+    return false
+  }
 }
 
 async function isGameServerHealthy(sandbox: Sandbox): Promise<boolean> {
