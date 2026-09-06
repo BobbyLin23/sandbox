@@ -2,6 +2,7 @@ import { deepSeek } from "@ai-sdk/deepseek"
 import { chat, upsertIncomingMessage } from "@trigger.dev/sdk/ai"
 import { streamText } from "ai"
 
+import { createGameSandbox } from "@/lib/daytona/utils"
 import {
   getGameMessages,
   persistGameState,
@@ -10,6 +11,10 @@ import {
 
 export const gameChat = chat.agent({
   id: "game-chat",
+  onChatStart: async ({ chatId, preloaded }) => {
+    if (preloaded) return
+    await createGameSandbox(chatId)
+  },
   hydrateMessages: async ({ chatId, trigger, incomingMessages }) => {
     const stored = await getGameMessages(chatId)
 

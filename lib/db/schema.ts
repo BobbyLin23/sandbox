@@ -21,6 +21,7 @@ export const games = pgTable(
       .default(sql`'[]'::jsonb`),
     lastEventId: text("last_event_id"),
     publicAccessToken: text("public_access_token"),
+    sandboxId: text("sandbox_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

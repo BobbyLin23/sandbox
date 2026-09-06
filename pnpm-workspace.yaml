@@ -9,3 +9,4 @@ allowBuilds:
   utf-8-validate: false
   esbuild: true
   '@depot/cli': true
+  protobufjs: true
