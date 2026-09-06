@@ -18,7 +18,7 @@ const START_SERVER_CMD = `nohup python3 -m http.server ${GAME_PORT} --bind 0.0.0
 
 // Dedupe concurrent create calls within this process so a sandbox is never
 // provisioned twice for the same game.
-const sandboxCreation = new Map<string, Promise<string>>()
+const sandboxCreation = new Map<string, Promise<Sandbox>>()
 
 // Sandboxes are named after the game so a sandbox that was created but whose
 // creation call timed out can be recovered by name instead of orphaned.
@@ -29,6 +29,25 @@ function sandboxName(gameId: string): string {
 const SANDBOX_CREATE_TIMEOUT_SECONDS = 300
 
 export async function createGameSandbox(gameId: string): Promise<string> {
+  return (await getGameSandboxCreation(gameId)).id
+}
+
+/**
+ * Guaranteed running Sandbox instance for a game: reuses the persisted
+ * sandbox, adopts an orphaned one by name, or provisions a new one, then
+ * starts it if it isn't running.
+ */
+export async function getGameSandbox(gameId: string): Promise<Sandbox> {
+  const sandbox = await getGameSandboxCreation(gameId)
+
+  if (sandbox.state !== SandboxState.STARTED) {
+    await sandbox.start()
+  }
+
+  return sandbox
+}
+
+function getGameSandboxCreation(gameId: string): Promise<Sandbox> {
   const inFlight = sandboxCreation.get(gameId)
   if (inFlight) {
     return inFlight
@@ -42,7 +61,7 @@ export async function createGameSandbox(gameId: string): Promise<string> {
   return creation
 }
 
-async function ensureGameSandbox(gameId: string): Promise<string> {
+async function ensureGameSandbox(gameId: string): Promise<Sandbox> {
   const [game] = await db
     .select({ sandboxId: games.sandboxId })
     .from(games)
@@ -52,7 +71,7 @@ async function ensureGameSandbox(gameId: string): Promise<string> {
   if (game?.sandboxId) {
     const existing = await getSandboxIfExists(game.sandboxId)
     if (existing) {
-      return existing.id
+      return existing
     }
   }
 
@@ -96,12 +115,12 @@ async function ensureGameSandbox(gameId: string): Promise<string> {
     console.error(`Failed to write game index to sandbox ${sandbox.id}`, error)
   }
 
-  return sandbox.id
+  return sandbox
 }
 
 export async function startGameServer(gameId: string) {
   const [game] = await db
-    .select()
+    .select({ id: games.id })
     .from(games)
     .where(eq(games.id, gameId))
     .limit(1)
@@ -110,16 +129,7 @@ export async function startGameServer(gameId: string) {
     throw new Error(`Game not found: ${gameId}`)
   }
 
-  let sandbox = game.sandboxId ? await getSandboxIfExists(game.sandboxId) : null
-
-  if (!sandbox) {
-    const sandboxId = await createGameSandbox(gameId)
-    sandbox = await daytona.get(sandboxId)
-  }
-
-  if (sandbox.state !== SandboxState.STARTED) {
-    await sandbox.start()
-  }
+  const sandbox = await getGameSandbox(gameId)
 
   if (!(await isGameServerHealthy(sandbox))) {
     await writeGameIndex(sandbox)
