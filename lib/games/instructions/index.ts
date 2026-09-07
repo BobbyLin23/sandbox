@@ -1,5 +1,6 @@
 import type { SystemModelMessage } from "ai"
 
+import { primitivesInstructions } from "./primitives"
 import { runtimeInstructions } from "./runtime"
 import { workflowInstructions } from "./workflow"
 
@@ -11,4 +12,5 @@ export const gameInstructions: SystemModelMessage[] = [
   },
   ...workflowInstructions,
   ...runtimeInstructions,
+  ...primitivesInstructions,
 ]

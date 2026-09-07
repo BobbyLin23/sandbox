@@ -12,7 +12,8 @@
       "!**/.pnpm-store",
       "!**/pnpm-lock.yaml",
       "!**/next-env.d.ts",
-      "!**/.zed"
+      "!**/.zed",
+      "!**/lib/games/runtime"
     ]
   },
   "css": {

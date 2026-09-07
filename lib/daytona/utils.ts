@@ -1,3 +1,5 @@
+import { readdir } from "node:fs/promises"
+import path from "node:path"
 import type { Sandbox } from "@daytona/sdk"
 import { SandboxState } from "@daytona/sdk"
 import { eq } from "drizzle-orm"
@@ -10,7 +12,10 @@ export const GAME_INDEX_PATH = "/home/daytona/game"
 const GAME_INDEX_FILE = `${GAME_INDEX_PATH}/index.html`
 const GAME_PORT = 3000
 
-const GAME_HTML = "New game"
+// Seed files copied into every new sandbox (see additionalFiles in
+// trigger.config.ts). Resolved relative to the cwd, which is the project root
+// in dev and the build directory when deployed.
+const RUNTIME_DIR = path.join(process.cwd(), "lib/games/runtime")
 
 const HEALTH_CHECK_CMD = `python3 -c "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://localhost:${GAME_PORT}/',timeout=5).status==200 else 1)"`
 
@@ -109,10 +114,13 @@ async function ensureGameSandbox(gameId: string): Promise<Sandbox> {
     .where(eq(games.id, gameId))
 
   try {
-    await writeGameIndex(sandbox)
+    await seedRuntimeFiles(sandbox)
   } catch (error) {
-    // The id is already persisted; startGameServer retries the write.
-    console.error(`Failed to write game index to sandbox ${sandbox.id}`, error)
+    // The id is already persisted; startGameServer retries the seed.
+    console.error(
+      `Failed to seed runtime files to sandbox ${sandbox.id}`,
+      error
+    )
   }
 
   return sandbox
@@ -132,7 +140,7 @@ export async function startGameServer(gameId: string) {
   const sandbox = await getGameSandbox(gameId)
 
   if (!(await isGameServerHealthy(sandbox))) {
-    await writeGameIndex(sandbox)
+    await seedRuntimeFiles(sandbox)
     await startGameHttpServer(sandbox)
   }
 
@@ -157,21 +165,66 @@ async function getSandboxByName(name: string): Promise<Sandbox | null> {
   }
 }
 
-// Seed the placeholder only when there is no index.html yet — never overwrite
+// Seed the runtime files only when there is no index.html yet — never overwrite
 // game files the chat agent has written.
-async function writeGameIndex(sandbox: Sandbox): Promise<void> {
+async function seedRuntimeFiles(sandbox: Sandbox): Promise<void> {
   await ensureGameFolder(sandbox)
 
   if (await gameIndexExists(sandbox)) {
     return
   }
 
-  await sandbox.fs.uploadFile(Buffer.from(GAME_HTML), GAME_INDEX_FILE)
+  for (const dir of await collectRuntimeDirs(RUNTIME_DIR)) {
+    const remoteDir = `${GAME_INDEX_PATH}/${path.relative(RUNTIME_DIR, dir).split(path.sep).join("/")}`
+    await ensureSandboxFolder(sandbox, remoteDir)
+  }
+
+  for (const file of await collectRuntimeFiles(RUNTIME_DIR)) {
+    const remotePath = `${GAME_INDEX_PATH}/${path.relative(RUNTIME_DIR, file).split(path.sep).join("/")}`
+    await sandbox.fs.uploadFile(file, remotePath)
+  }
+}
+
+async function collectRuntimeFiles(dir: string): Promise<string[]> {
+  const entries = await readdir(dir, { withFileTypes: true })
+
+  const files: string[] = []
+  for (const entry of entries) {
+    const entryPath = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      files.push(...(await collectRuntimeFiles(entryPath)))
+    } else if (entry.isFile()) {
+      files.push(entryPath)
+    }
+  }
+
+  return files
+}
+
+async function collectRuntimeDirs(dir: string): Promise<string[]> {
+  const entries = await readdir(dir, { withFileTypes: true })
+
+  const dirs: string[] = []
+  for (const entry of entries) {
+    const entryPath = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      dirs.push(entryPath, ...(await collectRuntimeDirs(entryPath)))
+    }
+  }
+
+  return dirs
 }
 
 async function ensureGameFolder(sandbox: Sandbox): Promise<void> {
+  await ensureSandboxFolder(sandbox, GAME_INDEX_PATH)
+}
+
+async function ensureSandboxFolder(
+  sandbox: Sandbox,
+  remotePath: string
+): Promise<void> {
   try {
-    await sandbox.fs.createFolder(GAME_INDEX_PATH, "755")
+    await sandbox.fs.createFolder(remotePath, "755")
   } catch {
     // The folder already exists.
   }

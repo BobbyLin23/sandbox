@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>New game</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        overflow: hidden;
+        background: radial-gradient(circle at 30% 20%, #f97316, #ea580c 45%, #9a3412);
+        font-family: system-ui, sans-serif;
+        color: #fff;
+      }
+      canvas {
+        display: block;
+      }
+      #overlay {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-end;
+        padding-bottom: 10vh;
+        pointer-events: none;
+        text-align: center;
+        text-shadow: 0 2px 16px rgba(0, 0, 0, 0.25);
+      }
+      #overlay h1 {
+        font-size: clamp(2.5rem, 7vw, 4.5rem);
+        font-weight: 800;
+        letter-spacing: -0.02em;
+      }
+      #overlay p {
+        margin-top: 0.5rem;
+        font-size: clamp(1rem, 2.5vw, 1.25rem);
+        opacity: 0.85;
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="overlay">
+      <h1>New game</h1>
+      <p>Describe your game in the chat to start building.</p>
+    </div>
+    <script type="module">
+      import * as THREE from "three"
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+      renderer.setSize(window.innerWidth, window.innerHeight)
+      renderer.outputColorSpace = THREE.SRGBColorSpace
+      document.body.appendChild(renderer.domElement)
+
+      const scene = new THREE.Scene()
+
+      const camera = new THREE.PerspectiveCamera(
+        50,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        200
+      )
+      camera.position.set(0, 1.6, 6.5)
+
+      scene.add(new THREE.AmbientLight(0xffffff, 1.1))
+      const sun = new THREE.DirectionalLight(0xffffff, 1.4)
+      sun.position.set(6, 10, 5)
+      scene.add(sun)
+      const fill = new THREE.DirectionalLight(0xffffff, 1.1)
+      fill.position.set(0, 2, 10)
+      scene.add(fill)
+      const rim = new THREE.DirectionalLight(0xffd9c2, 1.6)
+      rim.position.set(-6, -3, -8)
+      scene.add(rim)
+
+      const cube = new THREE.Mesh(
+        new THREE.BoxGeometry(2.2, 2.2, 2.2),
+        new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          roughness: 0.3,
+          metalness: 0.05,
+          emissive: 0xffffff,
+          emissiveIntensity: 0.35,
+        })
+      )
+      cube.rotation.set(0.4, 0.8, 0)
+      scene.add(cube)
+
+      cube.add(
+        new THREE.LineSegments(
+          new THREE.EdgesGeometry(cube.geometry),
+          new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.9, transparent: true })
+        )
+      )
+
+      const starCount = 350
+      const starPositions = new Float32Array(starCount * 3)
+      for (let i = 0; i < starCount; i++) {
+        starPositions[i * 3] = (Math.random() - 0.5) * 90
+        starPositions[i * 3 + 1] = (Math.random() - 0.5) * 90
+        starPositions[i * 3 + 2] = (Math.random() - 0.5) * 90
+      }
+      const starGeometry = new THREE.BufferGeometry()
+      starGeometry.setAttribute("position", new THREE.BufferAttribute(starPositions, 3))
+      const stars = new THREE.Points(
+        starGeometry,
+        new THREE.PointsMaterial({ color: 0xffffff, size: 0.25, sizeAttenuation: true })
+      )
+      scene.add(stars)
+
+      window.addEventListener("resize", () => {
+        camera.aspect = window.innerWidth / window.innerHeight
+        camera.updateProjectionMatrix()
+        renderer.setSize(window.innerWidth, window.innerHeight)
+      })
+
+      let audioCtx = null
+      function chord(freqs) {
+        audioCtx ??= new (window.AudioContext || window.webkitAudioContext)()
+        if (audioCtx.state === "suspended") audioCtx.resume()
+        const start = audioCtx.currentTime
+        freqs.forEach((freq, i) => {
+          const osc = audioCtx.createOscillator()
+          const gain = audioCtx.createGain()
+          const t = start + i * 0.02
+          osc.type = "triangle"
+          osc.frequency.setValueAtTime(freq, t)
+          gain.gain.setValueAtTime(0, t)
+          gain.gain.linearRampToValueAtTime(0.12, t + 0.01)
+          gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.5)
+          osc.connect(gain)
+          gain.connect(audioCtx.destination)
+          osc.start(t)
+          osc.stop(t + 0.55)
+        })
+      }
+
+      let clickCount = 0
+      let scaleTween = null
+      window.addEventListener("pointerdown", () => {
+        clickCount += 1
+        chord([392 * (1 + (clickCount % 3) * 0.25), 493.88, 587.33])
+        scaleTween = { from: cube.scale.x, mid: cube.scale.x * 1.15, time: 0 }
+      })
+
+      const clock = new THREE.Clock()
+      renderer.setAnimationLoop(() => {
+        const delta = Math.min(clock.getDelta(), 0.1)
+        const elapsed = clock.elapsedTime
+
+        cube.rotation.x += 0.35 * delta
+        cube.rotation.y += 0.55 * delta
+        cube.rotation.z = Math.sin(elapsed * 0.4) * 0.15
+        cube.position.y = Math.sin(elapsed * 1.2) * 0.35
+        cube.scale.setScalar(1 + Math.sin(elapsed * 0.8) * 0.04)
+
+        if (scaleTween) {
+          scaleTween.time += delta
+          const t = scaleTween.time
+          if (t < 0.12) {
+            const p = t / 0.12
+            cube.scale.setScalar(scaleTween.from + (scaleTween.mid - scaleTween.from) * p * (2 - p))
+          } else if (t < 0.62) {
+            const p = (t - 0.12) / 0.5
+            const c4 = (2 * Math.PI) / 3
+            const e =
+              p === 1 ? 1 : 2 ** (-10 * p) * Math.sin((p * 10 - 0.75) * c4) + 1
+            cube.scale.setScalar(scaleTween.from + (scaleTween.mid - scaleTween.from) * (1 - e))
+          } else {
+            cube.scale.setScalar(scaleTween.from)
+            scaleTween = null
+          }
+        }
+
+        camera.position.x = Math.sin(elapsed * 0.2) * 1.2
+        camera.lookAt(0, 0.4, 0)
+
+        stars.rotation.y += delta * 0.02
+        stars.rotation.x = Math.sin(elapsed * 0.1) * 0.05
+
+        renderer.render(scene, camera)
+      })
+    </script>
+  </body>
+</html>
