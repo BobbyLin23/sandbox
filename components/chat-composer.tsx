@@ -27,14 +27,24 @@ export function ChatComposer({
   onModelChange,
 }: ChatComposerProps) {
   const [title, setTitle] = useState("")
+  const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
   const handleSubmit = (value: string) => {
     if (!value.trim() || isPending) return
     const trimmed = value.trim()
     setTitle("")
+    setError(null)
     startTransition(async () => {
-      await onSubmit(trimmed)
+      try {
+        await onSubmit(trimmed)
+      } catch (submitError) {
+        setError(
+          submitError instanceof Error
+            ? submitError.message
+            : "Something went wrong. Please try again."
+        )
+      }
     })
   }
 
@@ -43,6 +53,7 @@ export function ChatComposer({
 
   return (
     <div className="flex w-full flex-col gap-4">
+      {error && <p className="text-sm text-destructive">{error}</p>}
       <InputGroup className="bg-popover">
         <InputGroupTextarea
           rows={1}
@@ -72,9 +83,7 @@ export function ChatComposer({
               ) : (
                 <ArrowUp className="size-5" />
               )}
-              <span className="sr-only">
-                {isCancellable ? "Stop" : "Send"}
-              </span>
+              <span className="sr-only">{isCancellable ? "Stop" : "Send"}</span>
             </Button>
           </div>
         </InputGroupAddon>

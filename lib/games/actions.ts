@@ -7,7 +7,8 @@ import { sessions } from "@trigger.dev/sdk"
 import { createIdGenerator, generateText, type UIMessage } from "ai"
 import { eq } from "drizzle-orm"
 import { redirect } from "next/navigation"
-
+import { OUT_OF_CREDITS_MESSAGE } from "@/lib/credits/ledger"
+import { ensureOrgCredits } from "@/lib/credits/reconcile"
 import { db } from "@/lib/db"
 import { games } from "@/lib/db/schema"
 import { resolveGameModelId } from "@/lib/games/model-catalog"
@@ -19,11 +20,20 @@ export async function listGamesAction() {
   return listGames()
 }
 
-export async function createGame(description: string, modelId?: string) {
+export async function createGame(
+  description: string,
+  modelId?: string
+): Promise<{ ok: false; error: string } | undefined> {
   const { orgId } = await clerkAuth()
 
   if (!orgId) {
     throw new Error("You must be in an organization to create a game.")
+  }
+
+  // Block the build before the session starts. Returned (not thrown) so the
+  // composer can show the message — server action errors are masked in prod.
+  if (!(await ensureOrgCredits(orgId))) {
+    return { ok: false, error: OUT_OF_CREDITS_MESSAGE }
   }
 
   const { text: title } = await generateText({
@@ -69,7 +79,7 @@ export async function createGame(description: string, modelId?: string) {
           chatId: game.id,
           trigger: "submit-message",
           message: userMessage,
-          metadata: { modelId: resolveGameModelId(modelId) },
+          metadata: { modelId: resolveGameModelId(modelId), orgId },
         },
       },
     })

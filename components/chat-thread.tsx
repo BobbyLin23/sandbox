@@ -8,6 +8,7 @@ import { CheckIcon, XIcon } from "lucide-react"
 import Image from "next/image"
 import { useEffect, useRef, useState } from "react"
 import { mintChatAccessToken, startChatSession } from "@/app/actions"
+import { useChatActivity } from "@/components/chat-activity"
 import { ChatComposer } from "@/components/chat-composer"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
 import { Markdown } from "@/components/ui/markdown"
@@ -26,8 +27,6 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller"
-import type { GameModelId } from "@/lib/games/model-catalog"
-import { defaultGameModelId } from "@/lib/games/model-catalog"
 import {
   Questionnaire,
   QuestionnaireActions,
@@ -40,6 +39,8 @@ import {
   QuestionnaireTitle,
 } from "@/components/ui/questionnaire"
 import { Spinner } from "@/components/ui/spinner"
+import type { GameModelId } from "@/lib/games/model-catalog"
+import { defaultGameModelId } from "@/lib/games/model-catalog"
 import type { gameChat } from "@/trigger/chat"
 
 function isToolPart(
@@ -282,14 +283,23 @@ export function ChatThread({
   onTurnComplete?: () => void
 }) {
   const [modelId, setModelId] = useState<GameModelId>(
-    initialModelId ?? defaultGameModelId,
+    initialModelId ?? defaultGameModelId
   )
 
   const transport = useTriggerChatTransport<typeof gameChat>({
     task: "game-chat",
     accessToken: ({ chatId }) => mintChatAccessToken(chatId),
-    startSession: ({ chatId, clientData }) =>
-      startChatSession({ chatId, clientData }),
+    startSession: async ({ chatId, clientData }) => {
+      const result = await startChatSession({ chatId, clientData })
+
+      // Throwing here (client-side) surfaces our message via useChat's
+      // error — server action errors are masked in production.
+      if ("error" in result) {
+        throw new Error(result.error)
+      }
+
+      return result
+    },
     clientData: { modelId },
     sessions: publicAccessToken
       ? {
@@ -376,6 +386,18 @@ export function ChatThread({
     (status === "streaming" &&
       lastMessage?.role === "assistant" &&
       !lastAssistantText)
+
+  const { setActive: setChatActive } = useChatActivity()
+
+  // Tell the app (e.g. the sidebar's credit polling) whether a chat run is
+  // streaming; reset on unmount so navigating away stops the polling.
+  useEffect(() => {
+    setChatActive(status === "submitted" || status === "streaming")
+
+    return () => {
+      setChatActive(false)
+    }
+  }, [status, setChatActive])
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">

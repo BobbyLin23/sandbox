@@ -1,12 +1,13 @@
 "use client"
 
-import { OrganizationSwitcher, UserButton } from "@clerk/nextjs"
+import { OrganizationSwitcher, UserButton, useAuth } from "@clerk/nextjs"
 import { Coins, Gamepad2, MessagesSquare, PenLine } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { useEffect, useState } from "react"
+import { usePathname, useRouter } from "next/navigation"
+import { useEffect, useRef, useState } from "react"
 
+import { useChatActivity } from "@/components/chat-activity"
 import { Empty, EmptyDescription } from "@/components/ui/empty"
 import {
   Popover,
@@ -31,6 +32,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { getCreditsAction } from "@/lib/credits/actions"
 import { listGamesAction } from "@/lib/games/actions"
 
 type Game = {
@@ -38,12 +40,69 @@ type Game = {
   title: string
 }
 
-export function AppSidebar({ games }: { games?: Game[] }) {
+export function AppSidebar({
+  games,
+  credits: creditsProp = "$1.00",
+}: {
+  games?: Game[]
+  credits?: string
+}) {
   const pathname = usePathname()
+  const router = useRouter()
+  const { orgId } = useAuth()
   const { state } = useSidebar()
   const isCollapsed = state === "collapsed"
 
   const [clientGames, setClientGames] = useState<Game[]>(games ?? [])
+  const [credits, setCredits] = useState(creditsProp)
+  const prevOrgId = useRef(orgId)
+  const { active: chatActive } = useChatActivity()
+
+  // Poll the live balance while a chat run is streaming so the badge drops
+  // as a game builds; snap to the final balance once it finishes.
+  useEffect(() => {
+    let cancelled = false
+
+    const tick = () => {
+      getCreditsAction().then((balance) => {
+        if (!cancelled) {
+          setCredits(balance)
+        }
+      })
+    }
+
+    tick()
+
+    if (!chatActive) {
+      return () => {
+        cancelled = true
+      }
+    }
+
+    const interval = setInterval(tick, 2000)
+
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [chatActive])
+
+  // Keep Recents in sync with server data (e.g. after an org switch re-renders
+  // the layout with the new org's games).
+  useEffect(() => {
+    setClientGames(games ?? [])
+  }, [games])
+
+  // Switching organizations is a client-side session change, so the server
+  // layout doesn't re-render on its own — refresh it to pick up the new
+  // org's credits and games.
+  useEffect(() => {
+    if (prevOrgId.current === orgId) {
+      return
+    }
+    prevOrgId.current = orgId
+    router.refresh()
+  }, [orgId, router])
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: refetch games on navigation so new games appear in Recents
   useEffect(() => {
@@ -174,7 +233,7 @@ export function AppSidebar({ games }: { games?: Game[] }) {
             >
               <Coins />
               <span>Credits</span>
-              <SidebarMenuBadge>$1.00</SidebarMenuBadge>
+              <SidebarMenuBadge>{credits}</SidebarMenuBadge>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

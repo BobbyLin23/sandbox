@@ -1,6 +1,19 @@
 import { PricingTable } from "@clerk/nextjs"
+import { auth } from "@clerk/nextjs/server"
 
-export default function BillingPage() {
+import { formatCredits } from "@/lib/credits/format"
+import { FREE_CREDITS, getCreditBalance } from "@/lib/credits/ledger"
+import { reconcileOrgCredits } from "@/lib/credits/reconcile"
+
+export default async function BillingPage() {
+  const { orgId } = await auth()
+
+  if (orgId) {
+    await reconcileOrgCredits(orgId)
+  }
+
+  const balance = orgId ? await getCreditBalance(orgId) : FREE_CREDITS
+
   return (
     <div className="flex min-h-svh flex-col">
       <header className="border-b px-4 py-2.5">
@@ -10,7 +23,7 @@ export default function BillingPage() {
         <section>
           <p className="text-sm text-muted-foreground">Available credits</p>
           <p className="mt-1 text-4xl font-semibold tracking-tight tabular-nums">
-            $8.80
+            {formatCredits(balance)}
           </p>
           <p className="mt-2 max-w-md text-sm text-muted-foreground">
             Credits cover the models that build and revise your games. A scene
