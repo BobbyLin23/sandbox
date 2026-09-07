@@ -24,15 +24,20 @@ export default async function GamePage({
   }
 
   return (
-    <div className="flex h-svh w-full flex-col py-4">
-      <GameChat
-        gameId={game.id}
-        messages={game.messages.length > 0 ? game.messages : undefined}
-        lastEventId={game.lastEventId ?? undefined}
-        publicAccessToken={game.publicAccessToken ?? undefined}
-        sandboxId={game.sandboxId ?? undefined}
-        modelId={resolveGameModelId(game.modelId)}
-      />
+    <div className="flex h-svh w-full flex-col">
+      <header className="border-b px-4 py-2.5">
+        <h1 className="text-sm font-semibold">{game.title}</h1>
+      </header>
+      <div className="flex-1 py-4">
+        <GameChat
+          gameId={game.id}
+          messages={game.messages.length > 0 ? game.messages : undefined}
+          lastEventId={game.lastEventId ?? undefined}
+          publicAccessToken={game.publicAccessToken ?? undefined}
+          sandboxId={game.sandboxId ?? undefined}
+          modelId={resolveGameModelId(game.modelId)}
+        />
+      </div>
     </div>
   )
 }
