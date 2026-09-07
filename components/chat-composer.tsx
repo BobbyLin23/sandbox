@@ -1,7 +1,7 @@
 "use client"
 
 import { ArrowUp, Square } from "lucide-react"
-import { useState, useTransition } from "react"
+import { useImperativeHandle, useState, useTransition } from "react"
 import { ModelPicker } from "@/components/model-picker"
 import { Button } from "@/components/ui/button"
 import {
@@ -11,7 +11,13 @@ import {
 } from "@/components/ui/input-group"
 import type { GameModelId } from "@/lib/games/model-catalog"
 
+export interface ChatComposerHandle {
+  fill: (value: string) => void
+  submit: (value?: string) => void
+}
+
 interface ChatComposerProps {
+  ref?: React.Ref<ChatComposerHandle>
   onSubmit: (value: string) => unknown
   onStop?: () => void
   isStreaming?: boolean
@@ -20,6 +26,7 @@ interface ChatComposerProps {
 }
 
 export function ChatComposer({
+  ref,
   onSubmit,
   onStop,
   isStreaming = false,
@@ -50,6 +57,18 @@ export function ChatComposer({
 
   const isCancellable = isStreaming
   const canSubmit = !isPending && !isCancellable
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      fill: (value: string) => {
+        setTitle(value)
+      },
+      submit: (value?: string) => {
+        handleSubmit(value ?? title)
+      },
+    }),
+  )
 
   return (
     <div className="flex w-full flex-col gap-4">

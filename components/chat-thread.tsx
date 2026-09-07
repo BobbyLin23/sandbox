@@ -404,7 +404,7 @@ export function ChatThread({
       <MessageScrollerProvider>
         <MessageScroller>
           <MessageScrollerViewport>
-            <MessageScrollerContent className="mx-auto w-full max-w-2xl pb-2">
+            <MessageScrollerContent className="mx-auto w-full max-w-2xl py-4">
               {messages.map((message) => {
                 const isAssistant = message.role === "assistant"
 

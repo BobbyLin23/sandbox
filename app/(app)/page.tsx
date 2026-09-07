@@ -1,7 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import Image from "next/image"
 import { NewGameComposer } from "@/components/new-game-composer"
-import { Button } from "@/components/ui/button"
 import {
   Empty,
   EmptyContent,
@@ -10,8 +9,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
-import { createGame } from "@/lib/games/actions"
-import { suggestions } from "@/lib/games/suggestions"
 
 export default async function Page() {
   await auth.protect()
@@ -33,19 +30,6 @@ export default async function Page() {
             </EmptyDescription>
           </EmptyHeader>
           <NewGameComposer />
-          <div className="flex flex-wrap justify-center gap-2">
-            {suggestions.map(({ icon: Icon, label }) => (
-              <Button
-                key={label}
-                variant="outline"
-                size="sm"
-                className="gap-1.5 font-normal text-muted-foreground rounded-full"
-              >
-                <Icon className="size-4" />
-                {label}
-              </Button>
-            ))}
-          </div>
         </EmptyContent>
       </Empty>
     </div>
