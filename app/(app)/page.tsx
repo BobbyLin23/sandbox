@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server"
 import Image from "next/image"
-import { ChatComposer } from "@/components/chat-composer"
+import { NewGameComposer } from "@/components/new-game-composer"
 import { Button } from "@/components/ui/button"
 import {
   Empty,
@@ -32,7 +32,7 @@ export default async function Page() {
               your own words. If you can describe it, you can play it.
             </EmptyDescription>
           </EmptyHeader>
-          <ChatComposer onSubmit={createGame} />
+          <NewGameComposer />
           <div className="flex flex-wrap justify-center gap-2">
             {suggestions.map(({ icon: Icon, label }) => (
               <Button

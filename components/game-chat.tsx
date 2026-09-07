@@ -10,18 +10,21 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
+import type { GameModelId } from "@/lib/games/model-catalog"
 
 export function GameChat({
   gameId,
   messages,
   lastEventId,
   publicAccessToken,
+  modelId,
 }: {
   gameId: string
   messages?: UIMessage[]
   lastEventId?: string
   publicAccessToken?: string
   sandboxId?: string
+  modelId?: GameModelId
 }) {
   const [previewRevision, setPreviewRevision] = useState(0)
 
@@ -33,6 +36,7 @@ export function GameChat({
           messages={messages}
           lastEventId={lastEventId}
           publicAccessToken={publicAccessToken}
+          initialModelId={modelId}
           onTurnComplete={() => setPreviewRevision((revision) => revision + 1)}
         />
       </ResizablePanel>

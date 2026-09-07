@@ -10,6 +10,7 @@ import { redirect } from "next/navigation"
 
 import { db } from "@/lib/db"
 import { games } from "@/lib/db/schema"
+import { resolveGameModelId } from "@/lib/games/model-catalog"
 import { listGames } from "@/lib/games/queries"
 
 const newMessageId = createIdGenerator({ prefix: "msg", size: 16 })
@@ -18,7 +19,7 @@ export async function listGamesAction() {
   return listGames()
 }
 
-export async function createGame(description: string) {
+export async function createGame(description: string, modelId?: string) {
   const { orgId } = await clerkAuth()
 
   if (!orgId) {
@@ -45,6 +46,7 @@ export async function createGame(description: string) {
     .values({
       orgId,
       title,
+      modelId: resolveGameModelId(modelId),
       messages: [userMessage],
     })
     .returning()
@@ -67,6 +69,7 @@ export async function createGame(description: string) {
           chatId: game.id,
           trigger: "submit-message",
           message: userMessage,
+          metadata: { modelId: resolveGameModelId(modelId) },
         },
       },
     })

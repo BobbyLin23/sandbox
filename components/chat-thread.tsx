@@ -6,7 +6,7 @@ import type { DynamicToolUIPart, ToolUIPart, UIMessage } from "ai"
 import { getToolName, lastAssistantMessageIsCompleteWithToolCalls } from "ai"
 import { CheckIcon, XIcon } from "lucide-react"
 import Image from "next/image"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { mintChatAccessToken, startChatSession } from "@/app/actions"
 import { ChatComposer } from "@/components/chat-composer"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
@@ -26,6 +26,8 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller"
+import type { GameModelId } from "@/lib/games/model-catalog"
+import { defaultGameModelId } from "@/lib/games/model-catalog"
 import {
   Questionnaire,
   QuestionnaireActions,
@@ -269,19 +271,26 @@ export function ChatThread({
   messages: initialMessages = [],
   lastEventId,
   publicAccessToken,
+  initialModelId,
   onTurnComplete,
 }: {
   gameId: string
   messages?: UIMessage[]
   lastEventId?: string
   publicAccessToken?: string
+  initialModelId?: GameModelId
   onTurnComplete?: () => void
 }) {
+  const [modelId, setModelId] = useState<GameModelId>(
+    initialModelId ?? defaultGameModelId,
+  )
+
   const transport = useTriggerChatTransport<typeof gameChat>({
     task: "game-chat",
     accessToken: ({ chatId }) => mintChatAccessToken(chatId),
     startSession: ({ chatId, clientData }) =>
       startChatSession({ chatId, clientData }),
+    clientData: { modelId },
     sessions: publicAccessToken
       ? {
           [gameId]: {
@@ -553,6 +562,8 @@ export function ChatThread({
           onSubmit={(value) => sendMessage({ text: value })}
           onStop={stop}
           isStreaming={status === "submitted" || status === "streaming"}
+          modelId={modelId}
+          onModelChange={setModelId}
         />
       </div>
     </div>

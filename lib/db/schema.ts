@@ -22,6 +22,7 @@ export const games = pgTable(
     lastEventId: text("last_event_id"),
     publicAccessToken: text("public_access_token"),
     sandboxId: text("sandbox_id"),
+    modelId: text("model_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

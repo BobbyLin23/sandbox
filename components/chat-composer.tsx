@@ -1,32 +1,30 @@
 "use client"
 
-import { ArrowUp, Check, ChevronDown, LayoutGrid, Square } from "lucide-react"
+import { ArrowUp, Square } from "lucide-react"
 import { useState, useTransition } from "react"
+import { ModelPicker } from "@/components/model-picker"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupTextarea,
 } from "@/components/ui/input-group"
-
-const models = ["Kimi K3", "Kimi K2", "GPT-5"]
+import type { GameModelId } from "@/lib/games/model-catalog"
 
 interface ChatComposerProps {
   onSubmit: (value: string) => unknown
   onStop?: () => void
   isStreaming?: boolean
+  modelId: GameModelId
+  onModelChange: (modelId: GameModelId) => void
 }
 
 export function ChatComposer({
   onSubmit,
   onStop,
   isStreaming = false,
+  modelId,
+  onModelChange,
 }: ChatComposerProps) {
   const [title, setTitle] = useState("")
   const [isPending, startTransition] = useTransition()
@@ -55,25 +53,7 @@ export function ChatComposer({
         />
         <InputGroupAddon align="block-end">
           <div className="flex w-full items-center justify-between gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger className="group/menu flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-sm font-medium text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
-                <LayoutGrid className="size-4" />
-                Kimi K3
-                <ChevronDown className="size-3.5 opacity-60" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                {models.map((model) => (
-                  <DropdownMenuItem
-                    key={model}
-                    className="justify-between text-muted-foreground"
-                    data-selected={model === "Kimi K3"}
-                  >
-                    {model}
-                    {model === "Kimi K3" && <Check className="size-4" />}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <ModelPicker modelId={modelId} onModelChange={onModelChange} />
 
             <Button
               size="icon-lg"

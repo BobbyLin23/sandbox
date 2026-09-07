@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { notFound } from "next/navigation"
 
 import { GameChat } from "@/components/game-chat"
+import { resolveGameModelId } from "@/lib/games/model-catalog"
 import { getGame } from "@/lib/games/queries"
 
 export default async function GamePage({
@@ -30,6 +31,7 @@ export default async function GamePage({
         lastEventId={game.lastEventId ?? undefined}
         publicAccessToken={game.publicAccessToken ?? undefined}
         sandboxId={game.sandboxId ?? undefined}
+        modelId={resolveGameModelId(game.modelId)}
       />
     </div>
   )
