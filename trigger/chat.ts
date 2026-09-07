@@ -1,7 +1,8 @@
-import { deepSeek } from "@ai-sdk/deepseek"
 import { chat, upsertIncomingMessage } from "@trigger.dev/sdk/ai"
 import { stepCountIs, streamText } from "ai"
+import { z } from "zod"
 
+import { getGameModelSettings } from "@/lib/games/agent"
 import { gameInstructions } from "@/lib/games/instructions"
 import {
   getGameMessages,
@@ -12,6 +13,9 @@ import { createGameTools } from "@/lib/games/tools"
 
 export const gameChat = chat.agent({
   id: "game-chat",
+  clientDataSchema: z.object({
+    modelId: z.string().optional(),
+  }),
   tools: ({ chatId }) => createGameTools(chatId),
   hydrateMessages: async ({ chatId, trigger, incomingMessages }) => {
     const stored = await getGameMessages(chatId)
@@ -34,13 +38,16 @@ export const gameChat = chat.agent({
       publicAccessToken: chatAccessToken,
     })
   },
-  run: async ({ messages, tools, signal }) =>
-    streamText({
+  run: async ({ messages, tools, clientData, signal }) => {
+    const { model } = getGameModelSettings(clientData?.modelId)
+
+    return streamText({
       ...chat.toStreamTextOptions({ tools }),
-      model: deepSeek("deepseek-v4-flash"),
+      model,
       instructions: gameInstructions,
       messages,
       abortSignal: signal,
       stopWhen: stepCountIs(20),
-    }),
+    })
+  },
 })
