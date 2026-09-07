@@ -2,13 +2,16 @@
 
 import { useChat } from "@ai-sdk/react"
 import { useTriggerChatTransport } from "@trigger.dev/sdk/chat/react"
-import type { UIMessage } from "ai"
+import type { DynamicToolUIPart, ToolUIPart, UIMessage } from "ai"
+import { getToolName } from "ai"
+import { CheckIcon, XIcon } from "lucide-react"
 import Image from "next/image"
 import { useEffect, useRef } from "react"
 import { mintChatAccessToken, startChatSession } from "@/app/actions"
 import { ChatComposer } from "@/components/chat-composer"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
 import { Markdown } from "@/components/ui/markdown"
+import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker"
 import {
   Message,
   MessageAvatar,
@@ -26,10 +29,58 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import type { gameChat } from "@/trigger/chat"
 
-function getMessageText(message: UIMessage) {
-  return message.parts
-    .map((part) => (part.type === "text" ? part.text : ""))
-    .join("")
+function isToolPart(
+  part: UIMessage["parts"][number]
+): part is ToolUIPart | DynamicToolUIPart {
+  return part.type.startsWith("tool-") || part.type === "dynamic-tool"
+}
+
+function getToolPath(part: ToolUIPart | DynamicToolUIPart) {
+  const input = part.input
+
+  if (typeof input !== "object" || input == null || !("path" in input)) {
+    return undefined
+  }
+
+  const path = (input as { path: unknown }).path
+
+  return typeof path === "string" && path ? path : undefined
+}
+
+function ToolMarker({ part }: { part: ToolUIPart | DynamicToolUIPart }) {
+  const toolName = getToolName(part)
+  const path = getToolPath(part)
+
+  const isActive =
+    part.state === "input-streaming" || part.state === "input-available"
+  const isFailed = part.state === "output-error"
+
+  return (
+    <Marker variant="border">
+      <MarkerIcon>
+        {isActive ? (
+          <Spinner className="size-4" />
+        ) : isFailed ? (
+          <XIcon className="size-4 text-destructive" />
+        ) : (
+          <CheckIcon className="size-4" />
+        )}
+      </MarkerIcon>
+      <MarkerContent className="min-w-0 flex-1">
+        {isFailed ? (
+          <span className="block truncate" title={part.errorText}>
+            {toolName} failed: {part.errorText}
+          </span>
+        ) : path ? (
+          <span className="block truncate">
+            {isActive ? "Running" : "Ran"} {toolName}: {path}
+          </span>
+        ) : (
+          <span>{isActive ? `Running ${toolName}…` : `Ran ${toolName}`}</span>
+        )}
+      </MarkerContent>
+    </Marker>
+  )
 }
 
 export function ChatThread({
@@ -119,9 +170,13 @@ export function ChatThread({
             <MessageScrollerContent className="mx-auto w-full max-w-2xl pb-2">
               {messages.map((message) => {
                 const isAssistant = message.role === "assistant"
-                const text = getMessageText(message)
 
-                if (isAssistant && !text) {
+                const hasRenderableContent = message.parts.some(
+                  (part) =>
+                    (part.type === "text" && part.text) || isToolPart(part)
+                )
+
+                if (!hasRenderableContent) {
                   return null
                 }
 
@@ -148,27 +203,60 @@ export function ChatThread({
                           </MessageAvatar>
                         )}
                         <MessageContent>
-                          <Bubble
-                            align={message.role === "user" ? "end" : "start"}
-                            variant={
-                              message.role === "user" ? "secondary" : "ghost"
-                            }
-                          >
-                            <BubbleContent
-                              className={isAssistant ? "py-2!" : undefined}
-                            >
-                              {isAssistant ? (
-                                <span className="flex items-end gap-0.5">
-                                  <Markdown>{text}</Markdown>
-                                  {isStreamingMessage && (
-                                    <span className="mb-1 inline-block h-4 w-0.5 animate-pulse rounded-full bg-foreground" />
-                                  )}
-                                </span>
-                              ) : (
-                                text
-                              )}
-                            </BubbleContent>
-                          </Bubble>
+                          <div className="flex w-full min-w-0 flex-col gap-2">
+                            {message.parts.map((part, index) => {
+                              const key = isToolPart(part)
+                                ? (part.toolCallId ?? `tool-${index}`)
+                                : `text-${index}`
+
+                              if (part.type === "text") {
+                                if (!part.text) {
+                                  return null
+                                }
+
+                                const isStreamingText =
+                                  isStreamingMessage &&
+                                  index === message.parts.length - 1
+
+                                return (
+                                  <Bubble
+                                    key={key}
+                                    align={
+                                      message.role === "user" ? "end" : "start"
+                                    }
+                                    variant={
+                                      message.role === "user"
+                                        ? "secondary"
+                                        : "ghost"
+                                    }
+                                  >
+                                    <BubbleContent
+                                      className={
+                                        isAssistant ? "py-2!" : undefined
+                                      }
+                                    >
+                                      {isAssistant ? (
+                                        <span className="flex items-end gap-0.5">
+                                          <Markdown>{part.text}</Markdown>
+                                          {isStreamingText && (
+                                            <span className="mb-1 inline-block h-4 w-0.5 animate-pulse rounded-full bg-foreground" />
+                                          )}
+                                        </span>
+                                      ) : (
+                                        part.text
+                                      )}
+                                    </BubbleContent>
+                                  </Bubble>
+                                )
+                              }
+
+                              if (isAssistant && isToolPart(part)) {
+                                return <ToolMarker key={key} part={part} />
+                              }
+
+                              return null
+                            })}
+                          </div>
                         </MessageContent>
                       </Message>
                     </MessageGroup>
