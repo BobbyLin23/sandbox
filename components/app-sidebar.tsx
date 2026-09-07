@@ -8,6 +8,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 
 import { useChatActivity } from "@/components/chat-activity"
+import { GameMenu } from "@/components/game-menu"
 import { Empty, EmptyDescription } from "@/components/ui/empty"
 import {
   Popover,
@@ -170,25 +171,36 @@ export function AppSidebar({
                   {activeGames && activeGames.length > 0 ? (
                     <div className="flex flex-col">
                       {activeGames.map((game) => (
-                        <PopoverClose
+                        <div
                           key={game.id}
-                          nativeButton={false}
-                          render={
-                            <Link
-                              href={`/games/${game.id}`}
-                              aria-current={
-                                pathname === `/games/${game.id}`
-                                  ? "page"
-                                  : undefined
-                              }
-                            />
-                          }
+                          className="flex items-center gap-1 pr-1.5"
                         >
-                          <span className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
-                            <Gamepad2 className="size-4 shrink-0" />
-                            <span className="truncate">{game.title}</span>
-                          </span>
-                        </PopoverClose>
+                          <PopoverClose
+                            nativeButton={false}
+                            render={
+                              <Link
+                                href={`/games/${game.id}`}
+                                aria-current={
+                                  pathname === `/games/${game.id}`
+                                    ? "page"
+                                    : undefined
+                                }
+                              />
+                            }
+                            className="min-w-0 flex-1"
+                          >
+                            <span className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
+                              <Gamepad2 className="size-4 shrink-0" />
+                              <span className="truncate">{game.title}</span>
+                            </span>
+                          </PopoverClose>
+                          <GameMenu
+                            gameId={game.id}
+                            title={game.title}
+                            variant="compact"
+                            align="start"
+                          />
+                        </div>
                       ))}
                     </div>
                   ) : (
@@ -211,6 +223,12 @@ export function AppSidebar({
                       <Gamepad2 />
                       <span>{game.title}</span>
                     </SidebarMenuButton>
+                    <GameMenu
+                      gameId={game.id}
+                      title={game.title}
+                      variant="sidebar"
+                      align="start"
+                    />
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>

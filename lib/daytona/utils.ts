@@ -39,6 +39,50 @@ export async function createGameSandbox(gameId: string): Promise<string> {
 }
 
 /**
+ * Permanently delete a game's sandbox. Tries both the persisted sandbox id
+ * and the game-named sandbox so an orphan created by a timed-out create call
+ * can never outlive its game. Missing sandboxes are ignored.
+ */
+export async function deleteGameSandbox(
+  gameId: string,
+  sandboxId?: string | null
+): Promise<void> {
+  const candidates = new Set<string>()
+
+  if (sandboxId) {
+    candidates.add(sandboxId)
+  }
+  candidates.add(sandboxName(gameId))
+
+  // Skip ids that resolved to a sandbox we already deleted.
+  const deleted = new Set<string>()
+
+  for (const idOrName of candidates) {
+    const sandbox = await getSandboxIfExists(idOrName)
+
+    if (!sandbox || deleted.has(sandbox.id)) {
+      continue
+    }
+
+    try {
+      await sandbox.delete(60, true)
+      deleted.add(sandbox.id)
+      Sentry.logger.info("Deleted game sandbox", {
+        "game.id": gameId,
+        "sandbox.id": sandbox.id,
+      })
+    } catch (error) {
+      Sentry.logger.error("Failed to delete game sandbox", {
+        "game.id": gameId,
+        "sandbox.id": sandbox.id,
+        "error.message": error instanceof Error ? error.message : String(error),
+      })
+      throw error
+    }
+  }
+}
+
+/**
  * Guaranteed running Sandbox instance for a game: reuses the persisted
  * sandbox, adopts an orphaned one by name, or provisions a new one, then
  * starts it if it isn't running.

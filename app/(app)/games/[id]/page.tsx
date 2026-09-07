@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { notFound } from "next/navigation"
-
 import { GameChat } from "@/components/game-chat"
+import { GameMenu } from "@/components/game-menu"
 import { resolveGameModelId } from "@/lib/games/model-catalog"
 import { getGame } from "@/lib/games/queries"
 
@@ -25,10 +25,11 @@ export default async function GamePage({
 
   return (
     <div className="flex h-svh w-full flex-col">
-      <header className="border-b px-4 py-2.5">
-        <h1 className="text-sm font-semibold">{game.title}</h1>
+      <header className="flex items-center justify-between gap-2 border-b px-4 py-2.5">
+        <h1 className="min-w-0 truncate text-sm font-semibold">{game.title}</h1>
+        <GameMenu gameId={game.id} title={game.title} />
       </header>
-      <div className="flex-1 py-4">
+      <div className="min-h-0 flex-1 overflow-hidden">
         <GameChat
           gameId={game.id}
           messages={game.messages.length > 0 ? game.messages : undefined}
