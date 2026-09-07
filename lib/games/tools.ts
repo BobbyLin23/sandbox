@@ -38,6 +38,53 @@ async function withGameSandbox<T>(
 
 export function createGameTools(gameId: string) {
   return {
+    ask_player: tool({
+      description:
+        "Ask the player a question about the game you are building and wait for their answer. First pick which aspect of the game the question is about, then write one clear question with 2-4 concrete options to choose from. The player's answer will arrive as the tool result.",
+      inputSchema: z.object({
+        dimension: z
+          .enum([
+            "loop",
+            "goal",
+            "world",
+            "look",
+            "feel",
+            "controls",
+            "sound",
+            "scope",
+          ])
+          .describe(
+            "The part of the game the question is about: 'loop' (core gameplay loop), 'goal' (winning/losing/objectives), 'world' (setting, story, theme), 'look' (visual style and art direction), 'feel' (mood, tone, pacing), 'controls' (input and interaction), 'sound' (music and audio), 'scope' (size and complexity)."
+          ),
+        question: z
+          .string()
+          .describe("A single, specific question for the player."),
+        options: z
+          .array(
+            z.object({
+              id: z
+                .string()
+                .describe("Short unique identifier, e.g. 'top-down'"),
+              label: z
+                .string()
+                .describe("Short label shown to the player, e.g. 'Top-down'"),
+              description: z
+                .string()
+                .describe("One sentence explaining what this option means."),
+            })
+          )
+          .min(2)
+          .max(4)
+          .describe("2-4 options for the player to choose from."),
+      }),
+      outputSchema: z.object({
+        optionId: z.string().describe("The id of the option the player chose."),
+        optionLabel: z
+          .string()
+          .describe("The label of the option the player chose."),
+      }),
+    }),
+
     write_file: tool({
       description:
         "Write a file inside the game directory (/home/daytona/game). Creates parent folders as needed and overwrites the file if it already exists.",

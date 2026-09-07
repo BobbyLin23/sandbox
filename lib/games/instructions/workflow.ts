@@ -33,6 +33,11 @@ relative to it (e.g. "index.html").
   fails if the text is not found.
 - \`read_file\`: inspect current content before editing.
 - \`list_files\`: see what exists before assuming.
+- \`ask_player\`: ask the user a question about the game (pick a dimension —
+  loop, goal, world, look, feel, controls, sound, scope — plus 2-4 concrete
+  options) and wait for their answer. Use it when a decision matters and you
+  cannot infer it from their description; do not use it for trivial choices
+  you can reasonably make yourself.
 
 Working rules:
 

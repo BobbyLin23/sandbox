@@ -3,7 +3,7 @@
 import { useChat } from "@ai-sdk/react"
 import { useTriggerChatTransport } from "@trigger.dev/sdk/chat/react"
 import type { DynamicToolUIPart, ToolUIPart, UIMessage } from "ai"
-import { getToolName } from "ai"
+import { getToolName, lastAssistantMessageIsCompleteWithToolCalls } from "ai"
 import { CheckIcon, XIcon } from "lucide-react"
 import Image from "next/image"
 import { useEffect, useRef } from "react"
@@ -26,6 +26,17 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller"
+import {
+  Questionnaire,
+  QuestionnaireActions,
+  QuestionnaireChoice,
+  QuestionnaireChoiceDescription,
+  QuestionnaireChoices,
+  QuestionnaireDescription,
+  QuestionnaireItem,
+  QuestionnaireSubmit,
+  QuestionnaireTitle,
+} from "@/components/ui/questionnaire"
 import { Spinner } from "@/components/ui/spinner"
 import type { gameChat } from "@/trigger/chat"
 
@@ -45,6 +56,176 @@ function getToolPath(part: ToolUIPart | DynamicToolUIPart) {
   const path = (input as { path: unknown }).path
 
   return typeof path === "string" && path ? path : undefined
+}
+
+type AskPlayerOption = {
+  id: string
+  label: string
+  description: string
+}
+
+type AskPlayerInput = {
+  dimension: string
+  question: string
+  options: AskPlayerOption[]
+}
+
+type AskPlayerOutput = {
+  optionId: string
+  optionLabel: string
+}
+
+const askPlayerDimensionLabels: Record<string, string> = {
+  loop: "the gameplay loop",
+  goal: "goals and objectives",
+  world: "the setting and story",
+  look: "the visual style",
+  feel: "mood, tone and pacing",
+  controls: "controls and interaction",
+  sound: "sound and music",
+  scope: "scope and complexity",
+}
+
+function isAskPlayerInput(value: unknown): value is AskPlayerInput {
+  if (typeof value !== "object" || value == null) return false
+
+  const { dimension, question, options } = value as AskPlayerInput
+
+  return (
+    typeof dimension === "string" &&
+    typeof question === "string" &&
+    Array.isArray(options) &&
+    options.every(
+      (option) =>
+        typeof option.id === "string" &&
+        typeof option.label === "string" &&
+        typeof option.description === "string"
+    )
+  )
+}
+
+function isAskPlayerOutput(value: unknown): value is AskPlayerOutput {
+  if (typeof value !== "object" || value == null) return false
+
+  const { optionId, optionLabel } = value as AskPlayerOutput
+
+  return typeof optionId === "string" && typeof optionLabel === "string"
+}
+
+function AskPlayerCard({
+  dimension,
+  question,
+  options,
+  disabled,
+  onAnswer,
+}: {
+  dimension: string
+  question: string
+  options: AskPlayerOption[]
+  disabled?: boolean
+  onAnswer: (option: AskPlayerOption) => void
+}) {
+  const dimensionLabel = askPlayerDimensionLabels[dimension]
+
+  return (
+    <Questionnaire
+      className="rounded-lg border p-4"
+      onSubmit={(event) => {
+        event.preventDefault()
+
+        const optionId = new FormData(event.currentTarget)
+          .get("option")
+          ?.toString()
+        const option = options.find((candidate) => candidate.id === optionId)
+
+        if (option) {
+          onAnswer(option)
+        }
+      }}
+    >
+      <QuestionnaireItem name="option" required disabled={disabled}>
+        <QuestionnaireTitle>{question}</QuestionnaireTitle>
+        {dimensionLabel && (
+          <QuestionnaireDescription>
+            About {dimensionLabel}.
+          </QuestionnaireDescription>
+        )}
+        <QuestionnaireChoices>
+          {options.map((option) => (
+            <QuestionnaireChoice key={option.id} value={option.id}>
+              {option.label}
+              <QuestionnaireChoiceDescription>
+                {option.description}
+              </QuestionnaireChoiceDescription>
+            </QuestionnaireChoice>
+          ))}
+        </QuestionnaireChoices>
+      </QuestionnaireItem>
+      <QuestionnaireActions>
+        <QuestionnaireSubmit disabled={disabled} />
+      </QuestionnaireActions>
+    </Questionnaire>
+  )
+}
+
+function AskPlayerPart({
+  part,
+  disabled,
+  onAnswer,
+}: {
+  part: ToolUIPart | DynamicToolUIPart
+  disabled?: boolean
+  onAnswer: (option: AskPlayerOption) => void
+}) {
+  switch (part.state) {
+    // The question is still being generated — fall back to the generic tool
+    // marker until the full input has arrived.
+    case "input-streaming":
+    case "output-error":
+      return <ToolMarker part={part} />
+    case "input-available": {
+      if (!isAskPlayerInput(part.input)) {
+        return <ToolMarker part={part} />
+      }
+
+      return (
+        <AskPlayerCard
+          dimension={part.input.dimension}
+          question={part.input.question}
+          options={part.input.options}
+          disabled={disabled}
+          onAnswer={onAnswer}
+        />
+      )
+    }
+    case "output-available": {
+      const answered = isAskPlayerOutput(part.output) ? part.output : undefined
+      const question = isAskPlayerInput(part.input) ? part.input.question : ""
+
+      return (
+        <Marker variant="border">
+          <MarkerIcon>
+            <CheckIcon className="size-4" />
+          </MarkerIcon>
+          <MarkerContent className="min-w-0 flex-1">
+            <span
+              className="block truncate"
+              title={
+                question
+                  ? `${question} — ${answered?.optionLabel ?? ""}`
+                  : undefined
+              }
+            >
+              Asked the player{question ? `: ${question}` : ""}
+              {answered ? ` → ${answered.optionLabel}` : ""}
+            </span>
+          </MarkerContent>
+        </Marker>
+      )
+    }
+    default:
+      return <ToolMarker part={part} />
+  }
 }
 
 function ToolMarker({ part }: { part: ToolUIPart | DynamicToolUIPart }) {
@@ -114,10 +295,21 @@ export function ChatThread({
   const onTurnCompleteRef = useRef(onTurnComplete)
   onTurnCompleteRef.current = onTurnComplete
 
-  const { messages, sendMessage, stop, status, error, resumeStream } = useChat({
+  const {
+    messages,
+    sendMessage,
+    stop,
+    status,
+    error,
+    resumeStream,
+    addToolOutput,
+  } = useChat({
     id: gameId,
     messages: initialMessages,
     transport,
+    // Resume the turn automatically once every pending tool call (e.g. an
+    // answered ask_player) has an output.
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
     onFinish: ({ message, isAbort, isError }) => {
       if (isAbort || isError) return
 
@@ -265,6 +457,29 @@ export function ChatThread({
                               }
 
                               if (isAssistant && isToolPart(part)) {
+                                if (part.type === "tool-ask_player") {
+                                  return (
+                                    <AskPlayerPart
+                                      key={key}
+                                      part={part}
+                                      disabled={
+                                        status === "submitted" ||
+                                        status === "streaming"
+                                      }
+                                      onAnswer={(option) =>
+                                        addToolOutput({
+                                          tool: "ask_player",
+                                          toolCallId: part.toolCallId,
+                                          output: {
+                                            optionId: option.id,
+                                            optionLabel: option.label,
+                                          },
+                                        })
+                                      }
+                                    />
+                                  )
+                                }
+
                                 return <ToolMarker key={key} part={part} />
                               }
 
