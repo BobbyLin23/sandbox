@@ -8,7 +8,13 @@ import { Spinner } from "@/components/ui/spinner"
 const POLL_INTERVAL_MS = 2_000
 const MAX_POLL_ATTEMPTS = 90
 
-export function ChatPreview({ gameId }: { gameId: string }) {
+export function ChatPreview({
+  gameId,
+  revision = 0,
+}: {
+  gameId: string
+  revision?: number
+}) {
   const previewEndpoint = `/api/games/${gameId}/preview`
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -22,7 +28,11 @@ export function ChatPreview({ gameId }: { gameId: string }) {
       if (cancelled) return
 
       try {
-        const response = await fetch(previewEndpoint, { cache: "no-store" })
+        // Bust the fetch cache per revision; the iframe reload itself is
+        // driven by the revision key.
+        const response = await fetch(`${previewEndpoint}?r=${revision}`, {
+          cache: "no-store",
+        })
 
         if (response.ok) {
           if (!cancelled) {
@@ -62,7 +72,7 @@ export function ChatPreview({ gameId }: { gameId: string }) {
         clearTimeout(timer)
       }
     }
-  }, [previewEndpoint])
+  }, [previewEndpoint, revision])
 
   if (error) {
     return (
@@ -90,6 +100,7 @@ export function ChatPreview({ gameId }: { gameId: string }) {
 
   return (
     <iframe
+      key={revision}
       src={previewUrl}
       title="Game preview"
       className="h-full w-full border-0"

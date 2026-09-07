@@ -1,6 +1,7 @@
 "use client"
 
 import type { UIMessage } from "ai"
+import { useState } from "react"
 
 import { ChatPreview } from "@/components/chat-preview"
 import { ChatThread } from "@/components/chat-thread"
@@ -22,6 +23,8 @@ export function GameChat({
   publicAccessToken?: string
   sandboxId?: string
 }) {
+  const [previewRevision, setPreviewRevision] = useState(0)
+
   return (
     <ResizablePanelGroup orientation="horizontal">
       <ResizablePanel defaultSize="70%">
@@ -30,11 +33,12 @@ export function GameChat({
           messages={messages}
           lastEventId={lastEventId}
           publicAccessToken={publicAccessToken}
+          onTurnComplete={() => setPreviewRevision((revision) => revision + 1)}
         />
       </ResizablePanel>
       <ResizableHandle withHandle />
       <ResizablePanel defaultSize="30%" minSize="20%">
-        <ChatPreview gameId={gameId} />
+        <ChatPreview gameId={gameId} revision={previewRevision} />
       </ResizablePanel>
     </ResizablePanelGroup>
   )

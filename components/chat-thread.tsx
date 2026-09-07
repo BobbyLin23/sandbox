@@ -88,11 +88,13 @@ export function ChatThread({
   messages: initialMessages = [],
   lastEventId,
   publicAccessToken,
+  onTurnComplete,
 }: {
   gameId: string
   messages?: UIMessage[]
   lastEventId?: string
   publicAccessToken?: string
+  onTurnComplete?: () => void
 }) {
   const transport = useTriggerChatTransport<typeof gameChat>({
     task: "game-chat",
@@ -109,10 +111,22 @@ export function ChatThread({
       : undefined,
   })
 
+  const onTurnCompleteRef = useRef(onTurnComplete)
+  onTurnCompleteRef.current = onTurnComplete
+
   const { messages, sendMessage, stop, status, error, resumeStream } = useChat({
     id: gameId,
     messages: initialMessages,
     transport,
+    onFinish: ({ message, isAbort, isError }) => {
+      if (isAbort || isError) return
+
+      // Only reload the preview when the turn actually used tools, since
+      // that's the only way game files change.
+      if (!message.parts.some(isToolPart)) return
+
+      onTurnCompleteRef.current?.()
+    },
   })
 
   // Resume manually instead of via useChat's `resume` option: that option's
