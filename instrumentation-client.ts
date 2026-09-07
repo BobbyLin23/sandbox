@@ -5,7 +5,10 @@
 import * as Sentry from "@sentry/nextjs"
 
 Sentry.init({
-  dsn: "https://cad7f8086e613978fbd23447e74dc9d9@o4509825755906048.ingest.us.sentry.io/4512043350097920",
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+
+  // Required for Sentry.logger.* calls to be sent
+  enableLogs: true,
 
   // Add optional integrations for additional features
   integrations: [Sentry.replayIntegration()],

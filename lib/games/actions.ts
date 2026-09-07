@@ -2,6 +2,7 @@
 
 import { deepSeek } from "@ai-sdk/deepseek"
 import { auth as clerkAuth } from "@clerk/nextjs/server"
+import * as Sentry from "@sentry/nextjs"
 import { sessions } from "@trigger.dev/sdk"
 import { createIdGenerator, generateText, type UIMessage } from "ai"
 import { eq } from "drizzle-orm"
@@ -48,6 +49,11 @@ export async function createGame(description: string) {
     })
     .returning()
 
+  Sentry.logger.info("Game created", {
+    "game.id": game.id,
+    "org.id": orgId,
+  })
+
   // Start the chat session with the user's message so the game-chat agent
   // streams the first assistant response in the background. The redirect
   // below is never blocked on the LLM response itself.
@@ -70,7 +76,10 @@ export async function createGame(description: string) {
       .set({ publicAccessToken })
       .where(eq(games.id, game.id))
   } catch (error) {
-    console.error("Failed to start game chat session", error)
+    Sentry.logger.error("Failed to start game chat session", {
+      "game.id": game.id,
+      "error.message": error instanceof Error ? error.message : String(error),
+    })
   }
 
   redirect(`/games/${game.id}`)

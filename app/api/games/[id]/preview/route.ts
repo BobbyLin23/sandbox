@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs"
 import { NextResponse } from "next/server"
 
 import { startGameServer } from "@/lib/daytona/utils"
@@ -25,6 +26,10 @@ export async function GET(
   })
 
   if (!upstream.ok) {
+    Sentry.logger.error("Game preview upstream failed", {
+      "game.id": id,
+      "preview.status": upstream.status,
+    })
     return new NextResponse(`Upstream preview error: ${upstream.status}`, {
       status: 502,
     })

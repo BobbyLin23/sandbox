@@ -2,6 +2,7 @@ import { readdir } from "node:fs/promises"
 import path from "node:path"
 import type { Sandbox } from "@daytona/sdk"
 import { SandboxState } from "@daytona/sdk"
+import * as Sentry from "@sentry/node"
 import { eq } from "drizzle-orm"
 
 import { db } from "@/lib/db"
@@ -46,6 +47,10 @@ export async function getGameSandbox(gameId: string): Promise<Sandbox> {
   const sandbox = await getGameSandboxCreation(gameId)
 
   if (sandbox.state !== SandboxState.STARTED) {
+    Sentry.logger.info("Starting stopped sandbox", {
+      "game.id": gameId,
+      "sandbox.id": sandbox.id,
+    })
     await sandbox.start()
   }
 
@@ -95,6 +100,10 @@ async function ensureGameSandbox(gameId: string): Promise<Sandbox> {
         },
         { timeout: SANDBOX_CREATE_TIMEOUT_SECONDS }
       )
+      Sentry.logger.info("Sandbox created", {
+        "game.id": gameId,
+        "sandbox.id": sandbox.id,
+      })
     } catch (error) {
       // create() can throw (e.g. a start timeout) AFTER the sandbox was already
       // created on Daytona. Recover it by name and continue, so it isn't
@@ -103,7 +112,17 @@ async function ensureGameSandbox(gameId: string): Promise<Sandbox> {
       if (!sandbox) {
         throw error
       }
+      Sentry.logger.warn("Sandbox create failed, recovered existing by name", {
+        "game.id": gameId,
+        "sandbox.id": sandbox.id,
+        "error.message": error instanceof Error ? error.message : String(error),
+      })
     }
+  } else {
+    Sentry.logger.info("Sandbox adopted by name", {
+      "game.id": gameId,
+      "sandbox.id": sandbox.id,
+    })
   }
 
   // Persist the id before any slower operations so a later failure can't
@@ -117,10 +136,10 @@ async function ensureGameSandbox(gameId: string): Promise<Sandbox> {
     await seedRuntimeFiles(sandbox)
   } catch (error) {
     // The id is already persisted; startGameServer retries the seed.
-    console.error(
-      `Failed to seed runtime files to sandbox ${sandbox.id}`,
-      error
-    )
+    Sentry.logger.error("Failed to seed runtime files to sandbox", {
+      "sandbox.id": sandbox.id,
+      "error.message": error instanceof Error ? error.message : String(error),
+    })
   }
 
   return sandbox
@@ -140,8 +159,16 @@ export async function startGameServer(gameId: string) {
   const sandbox = await getGameSandbox(gameId)
 
   if (!(await isGameServerHealthy(sandbox))) {
+    Sentry.logger.warn("Game HTTP server unhealthy, restarting", {
+      "game.id": gameId,
+      "sandbox.id": sandbox.id,
+    })
     await seedRuntimeFiles(sandbox)
     await startGameHttpServer(sandbox)
+    Sentry.logger.info("Game HTTP server started", {
+      "game.id": gameId,
+      "sandbox.id": sandbox.id,
+    })
   }
 
   const { url, token } = await sandbox.getPreviewLink(GAME_PORT)
@@ -297,6 +324,9 @@ async function startGameHttpServer(sandbox: Sandbox): Promise<void> {
     }
   }
 
+  Sentry.logger.error("Game HTTP server failed to start", {
+    "sandbox.id": sandbox.id,
+  })
   throw new Error("Failed to start the game HTTP server in the sandbox")
 }
 

@@ -1,5 +1,6 @@
 "use client"
 
+import * as Sentry from "@sentry/nextjs"
 import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -38,6 +39,10 @@ export function ChatPreview({
           if (!cancelled) {
             setPreviewUrl(previewEndpoint)
           }
+          Sentry.logger.info("Game preview ready", {
+            "game.id": gameId,
+            "game.revision": revision,
+          })
           return
         }
 
@@ -45,10 +50,20 @@ export function ChatPreview({
           if (!cancelled) {
             setError("You don't have access to this preview.")
           }
+          Sentry.logger.warn("Game preview access denied", {
+            "game.id": gameId,
+            "game.revision": revision,
+            "preview.status": response.status,
+          })
           return
         }
       } catch {
         // Transient network failure — keep polling.
+        Sentry.logger.warn("Game preview poll failed", {
+          "game.id": gameId,
+          "game.revision": revision,
+          "preview.attempt": attempts + 1,
+        })
       }
 
       attempts += 1
@@ -58,6 +73,11 @@ export function ChatPreview({
             "The preview is taking too long to start. Try again in a moment."
           )
         }
+        Sentry.logger.error("Game preview setup timed out", {
+          "game.id": gameId,
+          "game.revision": revision,
+          "preview.attempts": attempts,
+        })
         return
       }
 
@@ -72,7 +92,7 @@ export function ChatPreview({
         clearTimeout(timer)
       }
     }
-  }, [previewEndpoint, revision])
+  }, [previewEndpoint, revision, gameId])
 
   if (error) {
     return (
