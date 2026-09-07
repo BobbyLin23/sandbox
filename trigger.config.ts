@@ -1,5 +1,7 @@
-import { additionalFiles } from "@trigger.dev/build/extensions/core";
-import { defineConfig } from "@trigger.dev/sdk";
+import { sentryEsbuildPlugin } from "@sentry/esbuild-plugin"
+import { esbuildPlugin } from "@trigger.dev/build/extensions"
+import { additionalFiles } from "@trigger.dev/build/extensions/core"
+import { defineConfig } from "@trigger.dev/sdk"
 
 export default defineConfig({
   project: "proj_tfdwnrvriqgwqbsqbaon",
@@ -22,6 +24,16 @@ export default defineConfig({
   dirs: ["trigger"],
   build: {
     // runtime/* is not imported anywhere; copy it into the build so tasks can seed sandboxes from it.
-    extensions: [additionalFiles({ files: ["lib/games/runtime/**"] })],
+    extensions: [
+      additionalFiles({ files: ["lib/games/runtime/**"] }),
+      esbuildPlugin(
+        sentryEsbuildPlugin({
+          org: process.env.SENTRY_ORG,
+          project: process.env.SENTRY_PROJECT,
+          authToken: process.env.SENTRY_AUTH_TOKEN,
+        }),
+        { placement: "last", target: "deploy" }
+      ),
+    ],
   },
-});
+})

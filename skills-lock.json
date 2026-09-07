@@ -55,6 +55,13 @@
       "skillPath": "skills/neon-postgres-egress-optimizer/SKILL.md",
       "computedHash": "692dac449459b8ace5113888627ee22e00cd249481f75712af52ca0f52d7ddae"
     },
+    "sentry-cli": {
+      "source": "cli.sentry.dev",
+      "sourceUrl": "https://cli.sentry.dev",
+      "sourceType": "well-known",
+      "computedHash": "82ab12258160dbe8f8c75aaac945cf750f34d49bedd942fa753b617d94aecd66",
+      "wellKnownDigest": "sha256:f0e5c3fdf1cfe71cefcdff90fd9bc5ab37e0a5f92692ee8579bfbfac275100a0"
+    },
     "threejs-animation": {
       "source": "cloudai-x/threejs-skills",
       "sourceType": "github",
