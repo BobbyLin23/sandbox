@@ -165,12 +165,31 @@ async function getSandboxByName(name: string): Promise<Sandbox | null> {
   }
 }
 
-// Seed the runtime files only when there is no index.html yet — never overwrite
-// game files the chat agent has written.
+// Marker shared by every placeholder build we seed. A game index containing
+// it is ours and safe to replace with the current runtime version; anything
+// else is treated as agent-authored and never touched.
+const PLACEHOLDER_MARKER = "<title>New game</title>"
+
+// Seed the runtime files. Never overwrite agent-authored game files: if an
+// index.html already exists and is not one of our placeholders, leave it
+// alone. If it is an outdated placeholder (e.g. seeded by an older app
+// version), refresh it so old placeholders don't serve stale builds forever.
 async function seedRuntimeFiles(sandbox: Sandbox): Promise<void> {
   await ensureGameFolder(sandbox)
 
   if (await gameIndexExists(sandbox)) {
+    const current = await sandbox.fs
+      .downloadFile(GAME_INDEX_FILE)
+      .catch(() => null)
+
+    if (!current?.toString("utf8").includes(PLACEHOLDER_MARKER)) {
+      return
+    }
+
+    await sandbox.fs.uploadFile(
+      path.join(RUNTIME_DIR, "index.html"),
+      GAME_INDEX_FILE
+    )
     return
   }
 
