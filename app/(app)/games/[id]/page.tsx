@@ -2,7 +2,11 @@ import { auth } from "@clerk/nextjs/server"
 import { notFound } from "next/navigation"
 import { GameChat } from "@/components/game-chat"
 import { GameMenu } from "@/components/game-menu"
-import { resolveGameModelId } from "@/lib/games/model-catalog"
+import {
+  resolveGameModelId,
+  toGameModelOptions,
+} from "@/lib/games/model-catalog"
+import { fetchGameModels } from "@/lib/games/model-registry"
 import { getGame } from "@/lib/games/queries"
 
 export default async function GamePage({
@@ -17,11 +21,13 @@ export default async function GamePage({
     return notFound()
   }
 
-  const game = await getGame(id)
+  const [game, models] = await Promise.all([getGame(id), fetchGameModels()])
 
   if (!game) {
     return notFound()
   }
+
+  const modelOptions = toGameModelOptions(models)
 
   return (
     <div className="flex h-svh w-full flex-col">
@@ -36,7 +42,8 @@ export default async function GamePage({
           lastEventId={game.lastEventId ?? undefined}
           publicAccessToken={game.publicAccessToken ?? undefined}
           sandboxId={game.sandboxId ?? undefined}
-          modelId={resolveGameModelId(game.modelId)}
+          modelId={resolveGameModelId(game.modelId, modelOptions)}
+          models={modelOptions}
         />
       </div>
     </div>

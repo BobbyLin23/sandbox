@@ -21,7 +21,15 @@ export const games = pgTable(
       .$type<UIMessage[]>()
       .notNull()
       .default(sql`'[]'::jsonb`),
+    // The chat runtime owns the transcript; these columns are what its
+    // transcript storage reads back (see `lib/games/persistence.ts`).
+    transcriptState: jsonb("transcript_state").$type<unknown>(),
+    nonFinalMessageIds: jsonb("non_final_message_ids")
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     lastEventId: text("last_event_id"),
+    lastInEventId: text("last_in_event_id"),
     publicAccessToken: text("public_access_token"),
     sandboxId: text("sandbox_id"),
     modelId: text("model_id"),

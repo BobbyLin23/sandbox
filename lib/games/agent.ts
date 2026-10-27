@@ -1,25 +1,33 @@
-import type { GameModelId } from "@/lib/games/model-catalog"
-import {
-  gameModels,
-  resolveGameModelId,
-} from "@/lib/games/model-catalog"
-import { gameModelProviders } from "@/lib/games/models"
+import type { LanguageModel } from "ai"
+
+import type { GameModelId, GameModelPricing } from "@/lib/games/model-catalog"
+import { findGameModel } from "@/lib/games/model-catalog"
+import { fetchGameModels } from "@/lib/games/model-registry"
+import { getGameModelProvider } from "@/lib/games/models"
 
 export type GameModelSettings = {
   modelId: GameModelId
-  model: (typeof gameModelProviders)[GameModelId]
+  model: LanguageModel
   name: string
   tagline: string
+  pricing: GameModelPricing
 }
 
-export function getGameModelSettings(modelId: unknown): GameModelSettings {
-  const id = resolveGameModelId(modelId)
-  const catalog = gameModels[id]
+export async function getGameModelSettings(
+  modelId: unknown
+): Promise<GameModelSettings> {
+  const models = await fetchGameModels()
+  const model = findGameModel(modelId, models)
+
+  if (!model) {
+    throw new Error("No models are available from OpenCode Go.")
+  }
 
   return {
-    modelId: id,
-    model: gameModelProviders[id],
-    name: catalog.name,
-    tagline: catalog.tagline,
+    modelId: model.id,
+    model: getGameModelProvider(model),
+    name: model.name,
+    tagline: model.tagline,
+    pricing: model.pricing,
   }
 }

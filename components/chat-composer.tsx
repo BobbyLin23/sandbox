@@ -9,7 +9,7 @@ import {
   InputGroupAddon,
   InputGroupTextarea,
 } from "@/components/ui/input-group"
-import type { GameModelId } from "@/lib/games/model-catalog"
+import type { GameModelId, GameModelOption } from "@/lib/games/model-catalog"
 
 export interface ChatComposerHandle {
   fill: (value: string) => void
@@ -21,6 +21,7 @@ interface ChatComposerProps {
   onSubmit: (value: string) => unknown
   onStop?: () => void
   isStreaming?: boolean
+  models: GameModelOption[]
   modelId: GameModelId
   onModelChange: (modelId: GameModelId) => void
 }
@@ -30,6 +31,7 @@ export function ChatComposer({
   onSubmit,
   onStop,
   isStreaming = false,
+  models,
   modelId,
   onModelChange,
 }: ChatComposerProps) {
@@ -56,19 +58,16 @@ export function ChatComposer({
   }
 
   const isCancellable = isStreaming
-  const canSubmit = !isPending && !isCancellable
+  const canSubmit = !isPending && !isCancellable && models.length > 0
 
-  useImperativeHandle(
-    ref,
-    () => ({
-      fill: (value: string) => {
-        setTitle(value)
-      },
-      submit: (value?: string) => {
-        handleSubmit(value ?? title)
-      },
-    }),
-  )
+  useImperativeHandle(ref, () => ({
+    fill: (value: string) => {
+      setTitle(value)
+    },
+    submit: (value?: string) => {
+      handleSubmit(value ?? title)
+    },
+  }))
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -83,7 +82,11 @@ export function ChatComposer({
         />
         <InputGroupAddon align="block-end">
           <div className="flex w-full items-center justify-between gap-2">
-            <ModelPicker modelId={modelId} onModelChange={onModelChange} />
+            <ModelPicker
+              models={models}
+              modelId={modelId}
+              onModelChange={onModelChange}
+            />
 
             <Button
               size="icon-lg"
