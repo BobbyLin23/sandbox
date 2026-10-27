@@ -1,31 +1,60 @@
-export const gameModels = {
-  "deepseek-v4-flash": {
-    id: "deepseek-v4-flash",
-    name: "DeepSeek Flash",
-    tagline: "Fast and cheap. Great for iterating.",
-  },
-  "deepseek-v4-pro": {
-    id: "deepseek-v4-pro",
-    name: "DeepSeek Pro",
-    tagline: "The strongest reasoner. Slower, pricier.",
-  },
-  "deepseek-v4-flash-vision-exp": {
-    id: "deepseek-v4-flash-vision-exp",
-    name: "DeepSeek Flash Vision",
-    tagline: "Flash, plus image understanding.",
-  },
-} as const
+// Shared between server and client. The model list itself is fetched at
+// runtime from OpenCode Go — nothing here hardcodes a model.
 
-export type GameModelId = keyof typeof gameModels
+export type GameModelId = string
 
-export const gameModelIds = Object.keys(gameModels) as GameModelId[]
+export type GameModelProtocol =
+  | "openai"
+  | "anthropic"
+  | "google"
+  | "openai-compatible"
 
-export const defaultGameModelId: GameModelId = "deepseek-v4-flash"
-
-export function isGameModelId(value: unknown): value is GameModelId {
-  return typeof value === "string" && Object.hasOwn(gameModels, value)
+export type GameModelPricing = {
+  // Dollars per million tokens.
+  freshInput: number
+  cachedInput: number
+  cacheWrite: number
+  output: number
 }
 
-export function resolveGameModelId(value: unknown): GameModelId {
-  return isGameModelId(value) ? value : defaultGameModelId
+// The serializable subset the model picker needs.
+export type GameModelOption = {
+  id: GameModelId
+  name: string
+  tagline: string
+}
+
+// Full model description, server-side only.
+export type GameModel = GameModelOption & {
+  protocol: GameModelProtocol
+  api: string
+  pricing: GameModelPricing
+  contextWindow?: number
+}
+
+export function toGameModelOptions(models: GameModel[]): GameModelOption[] {
+  return models.map(({ id, name, tagline }) => ({ id, name, tagline }))
+}
+
+// Falls back to the first available model when the stored id is unknown, so
+// games created when a model was still available keep working.
+export function findGameModel<T extends GameModelOption>(
+  value: unknown,
+  models: readonly T[]
+): T | undefined {
+  if (typeof value === "string") {
+    const match = models.find((model) => model.id === value)
+    if (match) {
+      return match
+    }
+  }
+
+  return models[0]
+}
+
+export function resolveGameModelId(
+  value: unknown,
+  models: readonly GameModelOption[]
+): GameModelId {
+  return findGameModel(value, models)?.id ?? ""
 }

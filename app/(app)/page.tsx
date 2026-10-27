@@ -9,9 +9,13 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
+import { toGameModelOptions } from "@/lib/games/model-catalog"
+import { fetchGameModels } from "@/lib/games/model-registry"
 
 export default async function Page() {
   await auth.protect()
+
+  const models = toGameModelOptions(await fetchGameModels())
 
   return (
     <div className="flex min-h-svh flex-col items-center justify-center gap-6">
@@ -29,7 +33,7 @@ export default async function Page() {
               your own words. If you can describe it, you can play it.
             </EmptyDescription>
           </EmptyHeader>
-          <NewGameComposer />
+          <NewGameComposer models={models} />
         </EmptyContent>
       </Empty>
     </div>

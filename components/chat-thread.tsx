@@ -39,8 +39,7 @@ import {
   QuestionnaireTitle,
 } from "@/components/ui/questionnaire"
 import { Spinner } from "@/components/ui/spinner"
-import type { GameModelId } from "@/lib/games/model-catalog"
-import { defaultGameModelId } from "@/lib/games/model-catalog"
+import type { GameModelId, GameModelOption } from "@/lib/games/model-catalog"
 import type { gameChat } from "@/trigger/chat"
 
 function isToolPart(
@@ -273,6 +272,7 @@ export function ChatThread({
   lastEventId,
   publicAccessToken,
   initialModelId,
+  models,
   onTurnComplete,
 }: {
   gameId: string
@@ -280,11 +280,14 @@ export function ChatThread({
   lastEventId?: string
   publicAccessToken?: string
   initialModelId?: GameModelId
+  models: GameModelOption[]
   onTurnComplete?: () => void
 }) {
-  const [modelId, setModelId] = useState<GameModelId>(
-    initialModelId ?? defaultGameModelId
-  )
+  const [modelId, setModelId] = useState<GameModelId>(() => {
+    const initial = models.find((model) => model.id === initialModelId)
+
+    return initial?.id ?? models[0]?.id ?? ""
+  })
 
   const transport = useTriggerChatTransport<typeof gameChat>({
     task: "game-chat",
@@ -584,6 +587,7 @@ export function ChatThread({
           onSubmit={(value) => sendMessage({ text: value })}
           onStop={stop}
           isStreaming={status === "submitted" || status === "streaming"}
+          models={models}
           modelId={modelId}
           onModelChange={setModelId}
         />

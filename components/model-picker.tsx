@@ -9,16 +9,24 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import type { GameModelId } from "@/lib/games/model-catalog"
-import { gameModels } from "@/lib/games/model-catalog"
+import type { GameModelId, GameModelOption } from "@/lib/games/model-catalog"
 
 interface ModelPickerProps {
+  models: GameModelOption[]
   modelId: GameModelId
   onModelChange: (modelId: GameModelId) => void
 }
 
-export function ModelPicker({ modelId, onModelChange }: ModelPickerProps) {
-  const selected = gameModels[modelId]
+export function ModelPicker({
+  models,
+  modelId,
+  onModelChange,
+}: ModelPickerProps) {
+  const selected = models.find((model) => model.id === modelId) ?? models[0]
+
+  if (!selected) {
+    return null
+  }
 
   return (
     <DropdownMenu>
@@ -27,12 +35,15 @@ export function ModelPicker({ modelId, onModelChange }: ModelPickerProps) {
         {selected.name}
         <ChevronDown className="size-3.5 opacity-60" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-64">
+      <DropdownMenuContent
+        align="start"
+        className="max-h-96 min-w-64 overflow-y-auto"
+      >
         <DropdownMenuRadioGroup
-          value={modelId}
-          onValueChange={(value) => onModelChange(value as GameModelId)}
+          value={selected.id}
+          onValueChange={(value) => onModelChange(value)}
         >
-          {Object.values(gameModels).map((model) => (
+          {models.map((model) => (
             <DropdownMenuRadioItem
               key={model.id}
               value={model.id}
@@ -42,9 +53,11 @@ export function ModelPicker({ modelId, onModelChange }: ModelPickerProps) {
               <span className="whitespace-nowrap text-sm font-medium">
                 {model.name}
               </span>
-              <span className="text-xs text-muted-foreground">
-                {model.tagline}
-              </span>
+              {model.tagline && (
+                <span className="text-xs text-muted-foreground">
+                  {model.tagline}
+                </span>
+              )}
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>

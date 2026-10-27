@@ -1,6 +1,5 @@
 "use server"
 
-import { deepSeek } from "@ai-sdk/deepseek"
 import { auth as clerkAuth } from "@clerk/nextjs/server"
 import * as Sentry from "@sentry/nextjs"
 import { sessions } from "@trigger.dev/sdk"
@@ -13,7 +12,9 @@ import { ensureOrgCredits } from "@/lib/credits/reconcile"
 import { deleteGameSandbox } from "@/lib/daytona/utils"
 import { db } from "@/lib/db"
 import { games } from "@/lib/db/schema"
-import { resolveGameModelId } from "@/lib/games/model-catalog"
+import { findGameModel } from "@/lib/games/model-catalog"
+import { fetchGameModels } from "@/lib/games/model-registry"
+import { getGameModelProvider } from "@/lib/games/models"
 import { listGames } from "@/lib/games/queries"
 
 const newMessageId = createIdGenerator({ prefix: "msg", size: 16 })
@@ -38,14 +39,28 @@ export async function createGame(
     return { ok: false, error: OUT_OF_CREDITS_MESSAGE }
   }
 
-  const { text: title } = await generateText({
-    model: deepSeek("deepseek-v4-flash"),
-    reasoning: "none",
+  const models = await fetchGameModels()
+  const selectedModel = findGameModel(modelId, models)
+
+  if (!selectedModel) {
+    return { ok: false, error: "No models are available from OpenCode Go." }
+  }
+
+  // Title generation always uses the first model in OpenCode's list rather
+  // than a hardcoded id. Some models spend part of the budget on reasoning, so
+  // leave headroom and fall back to the description if the reply is empty.
+  const titleModel = findGameModel(undefined, models) ?? selectedModel
+  const { text: generatedTitle } = await generateText({
+    model: getGameModelProvider(titleModel),
+    // OpenCode Go routes requests by session; the game doesn't exist yet, so
+    // this one-off title call gets its own id.
+    headers: { "x-opencode-session": crypto.randomUUID() },
     instructions:
       "Generate a short, catchy title for a game. Return only the title, nothing else.",
     prompt: description,
-    maxOutputTokens: 60,
+    maxOutputTokens: 256,
   })
+  const title = generatedTitle.trim() || description.trim().slice(0, 60)
 
   const userMessage: UIMessage = {
     id: newMessageId(),
@@ -58,7 +73,7 @@ export async function createGame(
     .values({
       orgId,
       title,
-      modelId: resolveGameModelId(modelId),
+      modelId: selectedModel.id,
       messages: [userMessage],
     })
     .returning()
@@ -81,7 +96,7 @@ export async function createGame(
           chatId: game.id,
           trigger: "submit-message",
           message: userMessage,
-          metadata: { modelId: resolveGameModelId(modelId), orgId },
+          metadata: { modelId: selectedModel.id, orgId },
         },
       },
     })

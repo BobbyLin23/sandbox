@@ -1,4 +1,4 @@
-import { chat, upsertIncomingMessage } from "@trigger.dev/sdk/ai"
+import { chat } from "@trigger.dev/sdk/ai"
 import { stepCountIs, streamText } from "ai"
 import { eq } from "drizzle-orm"
 import { z } from "zod"
@@ -15,9 +15,8 @@ import { games } from "@/lib/db/schema"
 import { getGameModelSettings } from "@/lib/games/agent"
 import { gameInstructions } from "@/lib/games/instructions"
 import {
-  getGameMessages,
-  persistGameState,
-  updateGameMessages,
+  gameTranscriptStorage,
+  persistGameAccessToken,
 } from "@/lib/games/persistence"
 import { createGameTools } from "@/lib/games/tools"
 
@@ -28,6 +27,11 @@ export const gameChat = chat.agent({
     // Set by the server actions (trusted); the worker has no auth().
     orgId: z.string().optional(),
   }),
+  // The runtime owns the transcript: `save` records every change on the game
+  // row and `load` hands it back when a run continues. This replaces the
+  // deprecated `hydrateMessages` and brings crash recovery and durable
+  // compaction with it.
+  storage: gameTranscriptStorage,
   // Gate before every turn (including the session's first). A thrown Error
   // becomes an in-chat error chunk, so the player sees a message instead of
   // a crash. A build already running finishes — charging may take the
@@ -40,39 +44,25 @@ export const gameChat = chat.agent({
     }
   },
   tools: ({ chatId }) => createGameTools(chatId),
-  hydrateMessages: async ({ chatId, trigger, incomingMessages }) => {
-    const stored = await getGameMessages(chatId)
-
-    if (upsertIncomingMessage(stored, { trigger, incomingMessages })) {
-      await updateGameMessages(chatId, stored)
-    }
-
-    return stored
-  },
-  onTurnComplete: async ({
-    chatId,
-    uiMessages,
-    chatAccessToken,
-    lastEventId,
-  }) => {
-    await persistGameState(chatId, {
-      messages: uiMessages,
-      lastEventId,
-      publicAccessToken: chatAccessToken,
-    })
+  onTurnComplete: async ({ chatId, chatAccessToken }) => {
+    // Keep the freshest token so a reload can reconnect to this run.
+    await persistGameAccessToken(chatId, chatAccessToken)
   },
   run: async ({ messages, tools, clientData, chatId, signal }) => {
-    const { model, modelId } = getGameModelSettings(clientData?.modelId)
+    const { model, pricing } = await getGameModelSettings(clientData?.modelId)
 
     return streamText({
       ...chat.toStreamTextOptions({ tools }),
       model,
+      // OpenCode Go routes requests by session and needs a stable id per
+      // conversation for routing and prompt caching.
+      headers: { "x-opencode-session": chatId },
       instructions: gameInstructions,
       messages,
       abortSignal: signal,
       stopWhen: stepCountIs(20),
       onStepFinish: async (step) => {
-        const cost = getStepCost(modelId, step.usage)
+        const cost = getStepCost(pricing, step.usage)
         if (cost === 0) {
           return
         }

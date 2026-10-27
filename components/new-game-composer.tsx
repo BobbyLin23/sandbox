@@ -2,15 +2,17 @@
 
 import { useRef, useState, useTransition } from "react"
 
-import { ChatComposer, type ChatComposerHandle } from "@/components/chat-composer"
+import {
+  ChatComposer,
+  type ChatComposerHandle,
+} from "@/components/chat-composer"
 import { Button } from "@/components/ui/button"
 import { createGame } from "@/lib/games/actions"
-import type { GameModelId } from "@/lib/games/model-catalog"
-import { defaultGameModelId } from "@/lib/games/model-catalog"
+import type { GameModelId, GameModelOption } from "@/lib/games/model-catalog"
 import { suggestions } from "@/lib/games/suggestions"
 
-export function NewGameComposer() {
-  const [modelId, setModelId] = useState<GameModelId>(defaultGameModelId)
+export function NewGameComposer({ models }: { models: GameModelOption[] }) {
+  const [modelId, setModelId] = useState<GameModelId>(models[0]?.id ?? "")
   const [isPending, startTransition] = useTransition()
   const composerRef = useRef<ChatComposerHandle>(null)
 
@@ -28,6 +30,7 @@ export function NewGameComposer() {
       <ChatComposer
         ref={composerRef}
         onSubmit={(description) => createGame(description, modelId)}
+        models={models}
         modelId={modelId}
         onModelChange={setModelId}
       />
