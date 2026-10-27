@@ -1,6 +1,12 @@
 import { chat } from "@trigger.dev/sdk/ai"
 import { stepCountIs, streamText } from "ai"
+// @daytona/sdk loads these through runtime require() calls that esbuild can't
+// see (see `build.external` in trigger.config.ts). Importing them here makes
+// the bundler resolve them, so sandbox file uploads/downloads aren't missing
+// them at runtime.
+import "busboy"
 import { eq } from "drizzle-orm"
+import "form-data"
 import { z } from "zod"
 
 import {
@@ -22,6 +28,11 @@ import { createGameTools } from "@/lib/games/tools"
 
 export const gameChat = chat.agent({
   id: "game-chat",
+  // Forward model reasoning/thinking tokens to the client as `reasoning`
+  // parts, which the chat thread renders in a collapsible panel.
+  uiMessageStreamOptions: {
+    sendReasoning: true,
+  },
   clientDataSchema: z.object({
     modelId: z.string().optional(),
     // Set by the server actions (trusted); the worker has no auth().

@@ -23,6 +23,10 @@ export default defineConfig({
   },
   dirs: ["trigger"],
   build: {
+    // @daytona/sdk loads these through runtime `require()` calls that esbuild
+    // can't see, so they aren't bundled into the worker. Without them
+    // sandbox.fs.uploadFile/downloadFile throw "Module ... is not available".
+    external: ["form-data", "busboy"],
     // runtime/* is not imported anywhere; copy it into the build so tasks can seed sandboxes from it.
     extensions: [
       additionalFiles({ files: ["lib/games/runtime/**"] }),
