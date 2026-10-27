@@ -6,7 +6,7 @@ import type { DynamicToolUIPart, ToolUIPart, UIMessage } from "ai"
 import { getToolName, lastAssistantMessageIsCompleteWithToolCalls } from "ai"
 import { CheckIcon, XIcon } from "lucide-react"
 import Image from "next/image"
-import { useEffect, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useRef, useState } from "react"
 import { mintChatAccessToken, startChatSession } from "@/app/actions"
 import { useChatActivity } from "@/components/chat-activity"
 import { ChatComposer } from "@/components/chat-composer"
@@ -26,6 +26,7 @@ import {
   MessageScrollerItem,
   MessageScrollerProvider,
   MessageScrollerViewport,
+  useMessageScroller,
 } from "@/components/ui/message-scroller"
 import {
   Questionnaire,
@@ -38,6 +39,11 @@ import {
   QuestionnaireSubmit,
   QuestionnaireTitle,
 } from "@/components/ui/questionnaire"
+import {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from "@/components/ui/reasoning"
 import { Spinner } from "@/components/ui/spinner"
 import type { GameModelId, GameModelOption } from "@/lib/games/model-catalog"
 import type { gameChat } from "@/trigger/chat"
@@ -46,6 +52,45 @@ function isToolPart(
   part: UIMessage["parts"][number]
 ): part is ToolUIPart | DynamicToolUIPart {
   return part.type.startsWith("tool-") || part.type === "dynamic-tool"
+}
+
+/**
+ * Where a tool part sits in its lifecycle. The transport can replay a turn's
+ * chunks onto an assistant message that already holds them (e.g. resuming
+ * after a dropped connection), which leaves two parts sharing a `toolCallId`.
+ * When that happens, the most advanced copy is the one worth showing.
+ */
+const toolStateRank: Record<string, number> = {
+  "input-streaming": 0,
+  "input-available": 1,
+  "approval-requested": 2,
+  "approval-responded": 2,
+  "output-denied": 3,
+  "output-error": 3,
+  "output-available": 3,
+}
+
+/** Collapse duplicate tool parts so each tool call renders exactly once. */
+function getRenderableParts(parts: UIMessage["parts"]) {
+  const keptPartByCallId = new Map<string, { index: number; rank: number }>()
+
+  parts.forEach((part, index) => {
+    if (!isToolPart(part) || !part.toolCallId) return
+
+    const rank = toolStateRank[part.state] ?? 0
+    const kept = keptPartByCallId.get(part.toolCallId)
+
+    // Later copies win ties: on a replay they carry the newer state.
+    if (!kept || rank >= kept.rank) {
+      keptPartByCallId.set(part.toolCallId, { index, rank })
+    }
+  })
+
+  return parts.filter((part, index) => {
+    if (!isToolPart(part) || !part.toolCallId) return true
+
+    return keptPartByCallId.get(part.toolCallId)?.index === index
+  })
 }
 
 function getToolPath(part: ToolUIPart | DynamicToolUIPart) {
@@ -266,6 +311,158 @@ function ToolMarker({ part }: { part: ToolUIPart | DynamicToolUIPart }) {
   )
 }
 
+/**
+ * One message in the thread. Memoized so a streaming delta re-renders only
+ * the message it belongs to — historical messages (and their markdown) are
+ * skipped entirely via the UIMessage identity check.
+ */
+const ThreadMessage = memo(function ThreadMessage({
+  message,
+  isStreamingMessage,
+  isBusy,
+  onAskPlayerAnswer,
+}: {
+  message: UIMessage
+  isStreamingMessage: boolean
+  isBusy: boolean
+  onAskPlayerAnswer: (
+    toolCallId: string,
+    output: { optionId: string; optionLabel: string }
+  ) => void
+}) {
+  const isAssistant = message.role === "assistant"
+  const parts = getRenderableParts(message.parts)
+
+  return (
+    <MessageScrollerItem messageId={message.id}>
+      <MessageGroup>
+        <Message align={message.role === "user" ? "end" : "start"}>
+          {isAssistant && (
+            <MessageAvatar>
+              <Image
+                src="/logo.svg"
+                alt="Assistant"
+                width={32}
+                height={32}
+                className="size-8 object-contain"
+              />
+            </MessageAvatar>
+          )}
+          <MessageContent>
+            <div className="flex w-full min-w-0 flex-col gap-2">
+              {parts.map((part, index) => {
+                // Position is part of the key: a replayed turn can repeat a
+                // toolCallId or reasoning id within the same message, and keys
+                // only need to be unique among siblings.
+                const key = isToolPart(part)
+                  ? `${part.toolCallId ?? "tool"}-${index}`
+                  : part.type === "reasoning"
+                    ? `${part.id ?? "reasoning"}-${index}`
+                    : `text-${index}`
+
+                if (isAssistant && part.type === "reasoning") {
+                  if (!part.text) {
+                    return null
+                  }
+
+                  const isStreamingReasoning =
+                    isStreamingMessage && part.state === "streaming"
+
+                  return (
+                    <Reasoning
+                      key={key}
+                      isStreaming={isStreamingReasoning}
+                      className="w-full"
+                    >
+                      <ReasoningTrigger />
+                      <ReasoningContent>{part.text}</ReasoningContent>
+                    </Reasoning>
+                  )
+                }
+
+                if (part.type === "text") {
+                  if (!part.text) {
+                    return null
+                  }
+
+                  const isStreamingText =
+                    isStreamingMessage && index === parts.length - 1
+
+                  return (
+                    <Bubble
+                      key={key}
+                      align={message.role === "user" ? "end" : "start"}
+                      variant={message.role === "user" ? "secondary" : "ghost"}
+                    >
+                      <BubbleContent
+                        className={isAssistant ? "py-2!" : undefined}
+                      >
+                        {isAssistant ? (
+                          <span className="flex items-end gap-0.5">
+                            <Markdown>{part.text}</Markdown>
+                            {isStreamingText && (
+                              <span className="mb-1 inline-block h-4 w-0.5 animate-pulse rounded-full bg-foreground" />
+                            )}
+                          </span>
+                        ) : (
+                          part.text
+                        )}
+                      </BubbleContent>
+                    </Bubble>
+                  )
+                }
+
+                if (isAssistant && isToolPart(part)) {
+                  if (part.type === "tool-ask_player") {
+                    return (
+                      <AskPlayerPart
+                        key={key}
+                        part={part}
+                        disabled={isBusy}
+                        onAnswer={(option) =>
+                          onAskPlayerAnswer(part.toolCallId, {
+                            optionId: option.id,
+                            optionLabel: option.label,
+                          })
+                        }
+                      />
+                    )
+                  }
+
+                  return <ToolMarker key={key} part={part} />
+                }
+
+                return null
+              })}
+            </div>
+          </MessageContent>
+        </Message>
+      </MessageGroup>
+    </MessageScrollerItem>
+  )
+})
+
+/**
+ * Return to the live edge whenever the player sends a turn. `autoScroll`
+ * follows new text on its own, but only while the view is already at the
+ * bottom — a player who scrolled up to re-read has released it, and would
+ * otherwise not see the message they just sent.
+ */
+function FollowOnSubmit({ isSubmitting }: { isSubmitting: boolean }) {
+  const { scrollToEnd } = useMessageScroller()
+  const wasSubmitting = useRef(false)
+
+  useEffect(() => {
+    if (isSubmitting && !wasSubmitting.current) {
+      scrollToEnd({ behavior: "smooth" })
+    }
+
+    wasSubmitting.current = isSubmitting
+  }, [isSubmitting, scrollToEnd])
+
+  return null
+}
+
 export function ChatThread({
   gameId,
   messages: initialMessages = [],
@@ -329,6 +526,10 @@ export function ChatThread({
     id: gameId,
     messages: initialMessages,
     transport,
+    // Reasoning-heavy models emit many small deltas per second. Without a
+    // throttle each one re-renders the whole thread (and re-parses markdown),
+    // which saturates the main thread until the stream appears frozen.
+    throttle: 50,
     // Resume the turn automatically once every pending tool call (e.g. an
     // answered ask_player) has an output.
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
@@ -383,12 +584,27 @@ export function ChatThread({
   const lastAssistantText = lastMessage?.parts
     .map((part) => (part.type === "text" ? part.text : ""))
     .join("")
+  const lastAssistantReasoning = lastMessage?.parts
+    .map((part) => (part.type === "reasoning" ? part.text : ""))
+    .join("")
 
   const isThinking =
     status === "submitted" ||
     (status === "streaming" &&
       lastMessage?.role === "assistant" &&
-      !lastAssistantText)
+      !lastAssistantText &&
+      !lastAssistantReasoning)
+
+  const isBusy = status === "submitted" || status === "streaming"
+
+  // Stable callback so ThreadMessage's memo isn't busted by a new function
+  // identity on every render.
+  const handleAskPlayerAnswer = useCallback(
+    (toolCallId: string, output: { optionId: string; optionLabel: string }) => {
+      addToolOutput({ tool: "ask_player", toolCallId, output })
+    },
+    [addToolOutput]
+  )
 
   const { setActive: setChatActive } = useChatActivity()
 
@@ -404,16 +620,26 @@ export function ChatThread({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <MessageScrollerProvider>
+      {/* Follow the live edge while the reply streams: `autoScroll` pins the
+          viewport to the newest text and releases it as soon as the player
+          scrolls up. Rows are deliberately not `scrollAnchor`s — anchoring a
+          new turn to the top makes the scroller reserve the leftover height as
+          a spacer, which shows up as a large empty gap above the composer for
+          short replies. `mt-auto` bottom-aligns a transcript shorter than the
+          viewport so the last message always sits next to the composer. */}
+      <MessageScrollerProvider autoScroll>
+        <FollowOnSubmit isSubmitting={status === "submitted"} />
         <MessageScroller>
           <MessageScrollerViewport>
-            <MessageScrollerContent className="mx-auto w-full max-w-2xl py-4">
+            <MessageScrollerContent className="mx-auto w-full max-w-2xl py-4 [&>*:first-child]:mt-auto">
               {messages.map((message) => {
                 const isAssistant = message.role === "assistant"
 
                 const hasRenderableContent = message.parts.some(
                   (part) =>
-                    (part.type === "text" && part.text) || isToolPart(part)
+                    (part.type === "text" && part.text) ||
+                    (part.type === "reasoning" && part.text) ||
+                    isToolPart(part)
                 )
 
                 if (!hasRenderableContent) {
@@ -426,108 +652,17 @@ export function ChatThread({
                   message.id === lastMessage?.id
 
                 return (
-                  <MessageScrollerItem key={message.id} scrollAnchor>
-                    <MessageGroup>
-                      <Message
-                        align={message.role === "user" ? "end" : "start"}
-                      >
-                        {isAssistant && (
-                          <MessageAvatar>
-                            <Image
-                              src="/logo.svg"
-                              alt="Assistant"
-                              width={32}
-                              height={32}
-                              className="size-8 object-contain"
-                            />
-                          </MessageAvatar>
-                        )}
-                        <MessageContent>
-                          <div className="flex w-full min-w-0 flex-col gap-2">
-                            {message.parts.map((part, index) => {
-                              const key = isToolPart(part)
-                                ? (part.toolCallId ?? `tool-${index}`)
-                                : `text-${index}`
-
-                              if (part.type === "text") {
-                                if (!part.text) {
-                                  return null
-                                }
-
-                                const isStreamingText =
-                                  isStreamingMessage &&
-                                  index === message.parts.length - 1
-
-                                return (
-                                  <Bubble
-                                    key={key}
-                                    align={
-                                      message.role === "user" ? "end" : "start"
-                                    }
-                                    variant={
-                                      message.role === "user"
-                                        ? "secondary"
-                                        : "ghost"
-                                    }
-                                  >
-                                    <BubbleContent
-                                      className={
-                                        isAssistant ? "py-2!" : undefined
-                                      }
-                                    >
-                                      {isAssistant ? (
-                                        <span className="flex items-end gap-0.5">
-                                          <Markdown>{part.text}</Markdown>
-                                          {isStreamingText && (
-                                            <span className="mb-1 inline-block h-4 w-0.5 animate-pulse rounded-full bg-foreground" />
-                                          )}
-                                        </span>
-                                      ) : (
-                                        part.text
-                                      )}
-                                    </BubbleContent>
-                                  </Bubble>
-                                )
-                              }
-
-                              if (isAssistant && isToolPart(part)) {
-                                if (part.type === "tool-ask_player") {
-                                  return (
-                                    <AskPlayerPart
-                                      key={key}
-                                      part={part}
-                                      disabled={
-                                        status === "submitted" ||
-                                        status === "streaming"
-                                      }
-                                      onAnswer={(option) =>
-                                        addToolOutput({
-                                          tool: "ask_player",
-                                          toolCallId: part.toolCallId,
-                                          output: {
-                                            optionId: option.id,
-                                            optionLabel: option.label,
-                                          },
-                                        })
-                                      }
-                                    />
-                                  )
-                                }
-
-                                return <ToolMarker key={key} part={part} />
-                              }
-
-                              return null
-                            })}
-                          </div>
-                        </MessageContent>
-                      </Message>
-                    </MessageGroup>
-                  </MessageScrollerItem>
+                  <ThreadMessage
+                    key={message.id}
+                    message={message}
+                    isStreamingMessage={isStreamingMessage}
+                    isBusy={isBusy}
+                    onAskPlayerAnswer={handleAskPlayerAnswer}
+                  />
                 )
               })}
               {isThinking && (
-                <MessageScrollerItem scrollAnchor>
+                <MessageScrollerItem>
                   <MessageGroup>
                     <Message>
                       <MessageAvatar>
@@ -554,7 +689,7 @@ export function ChatThread({
                 </MessageScrollerItem>
               )}
               {status === "error" && error && (
-                <MessageScrollerItem scrollAnchor>
+                <MessageScrollerItem>
                   <MessageGroup>
                     <Message>
                       <MessageAvatar>
@@ -586,7 +721,7 @@ export function ChatThread({
         <ChatComposer
           onSubmit={(value) => sendMessage({ text: value })}
           onStop={stop}
-          isStreaming={status === "submitted" || status === "streaming"}
+          isStreaming={isBusy}
           models={models}
           modelId={modelId}
           onModelChange={setModelId}
